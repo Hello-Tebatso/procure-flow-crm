@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProcurementProvider } from "./contexts/ProcurementContext";
 import { useAuth } from "./contexts/AuthContext";
+import Index from "./pages/Index";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,7 @@ const AppRoutes = () => {
     <ProcurementProvider currentUser={user}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Index />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/requests" element={<RequestsPage />} />
         <Route path="/requests/new" element={<NewRequestPage />} />
@@ -44,15 +45,15 @@ const AppRoutes = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+    <BrowserRouter>
       <AuthProvider>
-        <BrowserRouter>
+        <TooltipProvider>
           <AppRoutes />
-        </BrowserRouter>
-        <Toaster />
-        <Sonner />
+          <Toaster />
+          <Sonner />
+        </TooltipProvider>
       </AuthProvider>
-    </TooltipProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 
