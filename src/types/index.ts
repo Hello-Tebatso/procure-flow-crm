@@ -26,6 +26,17 @@ export interface RequestFile {
   size: number;
   type: string;
   uploadedAt: string;
+  isPublic: boolean;
+}
+
+export interface RequestItem {
+  id: string;
+  itemNumber?: string;
+  description: string;
+  qtyRequested: number;
+  qtyDelivered: number;
+  qtyPending: number;
+  line: number;
 }
 
 export interface ProcurementRequest {
@@ -41,9 +52,6 @@ export interface ProcurementRequest {
   mgpEta?: string;
   expDeliveryDate?: string;
   dateDelivered?: string;
-  qtyRequested: number;
-  qtyDelivered: number;
-  qtyPending: number;
   leadTimeDays?: number;
   daysCount?: number;
   aging?: number;
@@ -60,7 +68,10 @@ export interface ProcurementRequest {
   buyerId?: string;
   isPublic: boolean;
   files?: RequestFile[];
+  items: RequestItem[];
 }
+
+export type PerformancePeriod = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export interface BuyerPerformance {
   buyerId: string;
@@ -73,7 +84,7 @@ export interface BuyerPerformance {
   linesPartiallyDelivered: number;
   deliveredOnTimePercentage: number;
   totalDeliveredPercentage: number;
-  period: string;
+  period: PerformancePeriod;
 }
 
 export interface DashboardStats {

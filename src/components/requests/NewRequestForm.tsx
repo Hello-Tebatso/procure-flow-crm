@@ -4,8 +4,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useProcurement } from "@/contexts/ProcurementContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { RequestItem } from "@/types";
+import { Trash2, Plus } from "lucide-react";
 
 import {
   Form,
@@ -19,37 +22,38 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
   rfqNumber: z.string().optional(),
   poNumber: z.string().optional(),
-  entity: z.string().min(1, "Entity is required"),
-  description: z.string().min(1, "Description is required"),
+  entity: z.string().optional(),
+  description: z.string().optional(),
   placeOfDelivery: z.string().min(1, "Place of delivery is required"),
-  placeOfArrival: z.string().optional(),
-  qtyRequested: z.coerce.number().positive("Quantity must be greater than 0"),
   expDeliveryDate: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 const NewRequestForm = () => {
+  const { user } = useAuth();
   const { createRequest, uploadFile } = useProcurement();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [items, setItems] = useState<Partial<RequestItem>[]>([
+    { description: "", qtyRequested: 1 }
+  ]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       rfqNumber: "",
       poNumber: "",
-      entity: "MGP Investments",
+      entity: user?.role === "admin" ? "MGP Investments" : undefined,
       description: "",
       placeOfDelivery: "",
-      placeOfArrival: "",
-      qtyRequested: 1,
       expDeliveryDate: "",
     },
   });
@@ -61,14 +65,59 @@ const NewRequestForm = () => {
     }
   };
 
+  const addItem = () => {
+    setItems([...items, { description: "", qtyRequested: 1 }]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index));
+    } else {
+      toast({
+        title: "Error",
+        description: "A request must have at least one item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateItem = (index: number, field: keyof RequestItem, value: any) => {
+    const updatedItems = [...items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: field === "qtyRequested" ? Number(value) : value,
+    };
+    setItems(updatedItems);
+  };
+
   const onSubmit = async (data: FormValues) => {
+    // Validate items
+    const invalidItems = items.some(item => !item.description?.trim());
+    if (invalidItems) {
+      toast({
+        title: "Validation Error",
+        description: "All items must have a description",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // Prepare items with line numbers
+      const formattedItems = items.map((item, index) => ({
+        ...item,
+        line: index + 1,
+        qtyRequested: item.qtyRequested || 1,
+        qtyDelivered: 0,
+        qtyPending: item.qtyRequested || 1,
+        id: `temp-${index}` // Temporary ID that will be replaced on server
+      })) as RequestItem[];
+
       // Create the request
       const newRequest = await createRequest({
         ...data,
-        qtyDelivered: 0,
-        qtyPending: data.qtyRequested,
+        items: formattedItems,
       });
 
       // Upload files if any
@@ -114,20 +163,39 @@ const NewRequestForm = () => {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Admin-only fields */}
+            {user?.role === "admin" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="rfqNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>RFQ Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Optional" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="entity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Entity</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="rfqNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>RFQ Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="poNumber"
@@ -141,52 +209,6 @@ const NewRequestForm = () => {
                   </FormItem>
                 )}
               />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                control={form.control}
-                name="entity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Entity</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="qtyRequested"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Quantity Requested</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="1" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea rows={3} {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="placeOfDelivery"
@@ -195,19 +217,6 @@ const NewRequestForm = () => {
                     <FormLabel>Place of Delivery</FormLabel>
                     <FormControl>
                       <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="placeOfArrival"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Place of Arrival (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -228,6 +237,74 @@ const NewRequestForm = () => {
                 </FormItem>
               )}
             />
+
+            {/* Request Items Section */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">Request Items</h3>
+                <Button 
+                  type="button" 
+                  onClick={addItem}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              </div>
+              
+              <Separator />
+              
+              {items.map((item, index) => (
+                <div key={index} className="p-4 border rounded-md space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium">Item {index + 1}</h4>
+                    {items.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(index)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <FormLabel htmlFor={`item-${index}-description`}>
+                        Description
+                      </FormLabel>
+                      <Textarea
+                        id={`item-${index}-description`}
+                        value={item.description || ""}
+                        onChange={(e) => updateItem(index, "description", e.target.value)}
+                        rows={3}
+                        placeholder="Item description"
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div>
+                      <FormLabel htmlFor={`item-${index}-qty`}>
+                        Quantity Requested
+                      </FormLabel>
+                      <Input
+                        id={`item-${index}-qty`}
+                        type="number"
+                        min="1"
+                        value={item.qtyRequested || 1}
+                        onChange={(e) => updateItem(index, "qtyRequested", e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
 
             <div className="space-y-4">
               <div>

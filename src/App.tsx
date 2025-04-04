@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import RequestsPage from "./pages/RequestsPage";
@@ -42,6 +42,38 @@ const AppRoutes = () => {
     </ProcurementProvider>
   );
 };
+
+// Add a link to favicon and metadata
+const addFavicon = () => {
+  const favicon = document.createElement('link');
+  favicon.rel = 'icon';
+  favicon.href = 'https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png';
+  document.head.appendChild(favicon);
+  
+  // Update title
+  document.title = 'MGP Procurement Management';
+  
+  // Add meta tags for social sharing
+  const metaDescription = document.createElement('meta');
+  metaDescription.name = 'description';
+  metaDescription.content = 'MGP Procurement Management System';
+  document.head.appendChild(metaDescription);
+  
+  const ogTitle = document.createElement('meta');
+  ogTitle.property = 'og:title';
+  ogTitle.content = 'MGP Procurement Management';
+  document.head.appendChild(ogTitle);
+  
+  const ogImage = document.createElement('meta');
+  ogImage.property = 'og:image';
+  ogImage.content = 'https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png';
+  document.head.appendChild(ogImage);
+};
+
+// Execute once when the app loads
+if (typeof window !== 'undefined') {
+  addFavicon();
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
