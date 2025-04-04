@@ -99,3 +99,14 @@ export interface DashboardStats {
   lateDelivery: number;
   priorityItems: number;
 }
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  action: string;
+  details: string;
+  requestId?: string;
+  timestamp: string;
+}
