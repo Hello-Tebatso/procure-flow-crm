@@ -10,7 +10,8 @@ import {
   FileText, 
   Settings,
   Menu,
-  X
+  X,
+  ClipboardList
 } from "lucide-react";
 
 const Sidebar = () => {
@@ -48,6 +49,12 @@ const Sidebar = () => {
       path: "/reports",
       icon: <FileText className="h-5 w-5" />,
       roles: ["admin", "buyer"]
+    },
+    {
+      name: "Activity Logs",
+      path: "/logs",
+      icon: <ClipboardList className="h-5 w-5" />,
+      roles: ["admin"]
     },
     {
       name: "Settings",
@@ -96,11 +103,11 @@ const Sidebar = () => {
         <div className="flex items-center justify-between p-4 border-b border-procurement-primary/20">
           <div className="flex items-center">
             <img
-              src="/lovable-uploads/0e327c2e-74bc-454a-8543-770c4d91ee88.png"
-              alt="Logo"
+              src="https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png"
+              alt="MGP Logo"
               className="h-8 w-8"
             />
-            {!isCollapsed && <span className="ml-3 font-bold text-lg">ProcureFlow</span>}
+            {!isCollapsed && <span className="ml-3 font-bold text-lg">MGP</span>}
           </div>
           <div className="flex items-center">
             <button 

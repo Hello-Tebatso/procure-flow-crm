@@ -26,6 +26,32 @@ export interface RequestFile {
   size: number;
   type: string;
   uploadedAt: string;
+  isPublic?: boolean;
+  uploadedBy?: string;
+}
+
+export interface RequestItem {
+  id: string;
+  requestId: string;
+  itemNumber: string;
+  description: string;
+  qtyRequested: number;
+  qtyDelivered: number;
+  unitPrice?: number;
+  totalPrice?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequestComment {
+  id: string;
+  requestId: string;
+  content: string;
+  isPublic: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  creatorName?: string;
 }
 
 export interface ProcurementRequest {
@@ -60,6 +86,8 @@ export interface ProcurementRequest {
   buyerId?: string;
   isPublic: boolean;
   files?: RequestFile[];
+  items?: RequestItem[];
+  comments?: RequestComment[];
 }
 
 export interface BuyerPerformance {
@@ -83,4 +111,16 @@ export interface DashboardStats {
   onTimeDelivery: number;
   lateDelivery: number;
   priorityItems: number;
+}
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  details?: any;
+  createdAt: string;
 }

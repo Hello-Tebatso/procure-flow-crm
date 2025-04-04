@@ -13,6 +13,7 @@ import ReportsPage from "./pages/ReportsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
 import ClientViewPage from "./pages/ClientViewPage";
+import ActivityLogsPage from "./pages/ActivityLogsPage";
 import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProcurementProvider } from "./contexts/ProcurementContext";
@@ -37,6 +38,7 @@ const AppRoutes = () => {
         <Route path="/users" element={<UsersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/client" element={<ClientViewPage />} />
+        <Route path="/logs" element={<ActivityLogsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </ProcurementProvider>
