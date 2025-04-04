@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { mockDashboardStats } from "@/lib/mock-data";
+import { mockDashboardStats, mockBuyerPerformance } from "@/lib/mock-data";
 import StatisticsGrid from '@/components/dashboard/StatisticsGrid';
 import StageDistributionChart from '@/components/dashboard/StageDistributionChart';
 import BuyerPerformanceTable from '@/components/dashboard/BuyerPerformanceTable';
@@ -15,7 +15,8 @@ const DashboardPage: React.FC = () => {
     'Logistics': 1,
     'Delivered': 2
   };
-  const performanceData = stats.performanceData || [];
+  // Use the mockBuyerPerformance data directly since stats.performanceData doesn't exist
+  const performanceData = mockBuyerPerformance;
 
   return (
     <div className="p-6 space-y-6">
