@@ -19,6 +19,38 @@ import { ProcurementProvider } from "./contexts/ProcurementContext";
 import { useAuth } from "./contexts/AuthContext";
 import Index from "./pages/Index";
 
+// Add a link to favicon and metadata
+const addFavicon = () => {
+  const favicon = document.createElement('link');
+  favicon.rel = 'icon';
+  favicon.href = 'https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png';
+  document.head.appendChild(favicon);
+  
+  // Update title
+  document.title = 'MGP Procurement Management';
+  
+  // Add meta tags for social sharing
+  const metaDescription = document.createElement('meta');
+  metaDescription.name = 'description';
+  metaDescription.content = 'MGP Procurement Management System';
+  document.head.appendChild(metaDescription);
+  
+  const ogTitle = document.createElement('meta');
+  ogTitle.setAttribute('property', 'og:title');
+  ogTitle.content = 'MGP Procurement Management';
+  document.head.appendChild(ogTitle);
+  
+  const ogImage = document.createElement('meta');
+  ogImage.setAttribute('property', 'og:image');
+  ogImage.content = 'https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png';
+  document.head.appendChild(ogImage);
+};
+
+// Execute once when the app loads
+if (typeof window !== 'undefined') {
+  addFavicon();
+}
+
 const queryClient = new QueryClient();
 
 const AppRoutes = () => {
@@ -43,50 +75,22 @@ const AppRoutes = () => {
   );
 };
 
-// Add a link to favicon and metadata
-const addFavicon = () => {
-  const favicon = document.createElement('link');
-  favicon.rel = 'icon';
-  favicon.href = 'https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png';
-  document.head.appendChild(favicon);
-  
-  // Update title
-  document.title = 'MGP Procurement Management';
-  
-  // Add meta tags for social sharing
-  const metaDescription = document.createElement('meta');
-  metaDescription.name = 'description';
-  metaDescription.content = 'MGP Procurement Management System';
-  document.head.appendChild(metaDescription);
-  
-  const ogTitle = document.createElement('meta');
-  ogTitle.property = 'og:title';
-  ogTitle.content = 'MGP Procurement Management';
-  document.head.appendChild(ogTitle);
-  
-  const ogImage = document.createElement('meta');
-  ogImage.property = 'og:image';
-  ogImage.content = 'https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png';
-  document.head.appendChild(ogImage);
-};
-
-// Execute once when the app loads
-if (typeof window !== 'undefined') {
-  addFavicon();
-}
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
+// Important: React components need to be in the correct order
+// with providers properly nested
+const App = () => {
+  return (
     <BrowserRouter>
-      <AuthProvider>
-        <TooltipProvider>
-          <AppRoutes />
-          <Toaster />
-          <Sonner />
-        </TooltipProvider>
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <AppRoutes />
+            <Toaster />
+            <Sonner />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </BrowserRouter>
-  </QueryClientProvider>
-);
+  );
+};
 
 export default App;

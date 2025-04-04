@@ -69,6 +69,10 @@ export interface ProcurementRequest {
   isPublic: boolean;
   files?: RequestFile[];
   items: RequestItem[];
+  // These fields are calculated from items but we need them in the type
+  qtyRequested?: number;
+  qtyDelivered?: number;
+  qtyPending?: number;
 }
 
 export type PerformancePeriod = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
