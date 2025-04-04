@@ -77,8 +77,7 @@ const RequestsPage = () => {
               </Button>
             </div>
             
-            {/* Allow only clients and admins to create new requests */}
-            {(user?.role === "client" || user?.role === "admin") && (
+            {user?.role !== "admin" && (
               <Button onClick={() => navigate("/requests/new")}>
                 New Request
               </Button>
@@ -91,12 +90,9 @@ const RequestsPage = () => {
             <TabsTrigger value="active">
               Active ({activeRequests.length})
             </TabsTrigger>
-            {/* Only show pending tab for admin and buyers */}
-            {(user?.role === "admin" || user?.role === "buyer") && (
-              <TabsTrigger value="pending">
-                Pending ({pendingRequests.length})
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="pending">
+              Pending ({pendingRequests.length})
+            </TabsTrigger>
             <TabsTrigger value="completed">
               Completed ({completedRequests.length})
             </TabsTrigger>
@@ -122,36 +118,33 @@ const RequestsPage = () => {
             )}
           </TabsContent>
           
-          {/* Only show pending tab content for admin and buyers */}
-          {(user?.role === "admin" || user?.role === "buyer") && (
-            <TabsContent value="pending" className="mt-6">
-              {viewMode === "table" ? (
-                <RequestsTable 
-                  requests={pendingRequests} 
-                  showActions
-                  onAccept={handleAcceptRequest}
-                  onDecline={handleDeclineRequest}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {pendingRequests.map(request => (
-                    <RequestCard 
-                      key={request.id} 
-                      request={request} 
-                      showActions={true}
-                      onAccept={handleAcceptRequest}
-                      onDecline={handleDeclineRequest}
-                    />
-                  ))}
-                  {pendingRequests.length === 0 && (
-                    <div className="col-span-full py-8 text-center text-muted-foreground">
-                      No pending requests found.
-                    </div>
-                  )}
-                </div>
-              )}
-            </TabsContent>
-          )}
+          <TabsContent value="pending" className="mt-6">
+            {viewMode === "table" ? (
+              <RequestsTable 
+                requests={pendingRequests} 
+                showActions
+                onAccept={handleAcceptRequest}
+                onDecline={handleDeclineRequest}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {pendingRequests.map(request => (
+                  <RequestCard 
+                    key={request.id} 
+                    request={request} 
+                    showActions={true}
+                    onAccept={handleAcceptRequest}
+                    onDecline={handleDeclineRequest}
+                  />
+                ))}
+                {pendingRequests.length === 0 && (
+                  <div className="col-span-full py-8 text-center text-muted-foreground">
+                    No pending requests found.
+                  </div>
+                )}
+              </div>
+            )}
+          </TabsContent>
           
           <TabsContent value="completed" className="mt-6">
             {viewMode === "table" ? (

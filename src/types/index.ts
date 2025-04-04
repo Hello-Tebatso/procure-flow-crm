@@ -26,17 +26,6 @@ export interface RequestFile {
   size: number;
   type: string;
   uploadedAt: string;
-  isPublic: boolean;
-}
-
-export interface RequestItem {
-  id: string;
-  itemNumber?: string;
-  description: string;
-  qtyRequested: number;
-  qtyDelivered: number;
-  qtyPending: number;
-  line: number;
 }
 
 export interface ProcurementRequest {
@@ -52,6 +41,9 @@ export interface ProcurementRequest {
   mgpEta?: string;
   expDeliveryDate?: string;
   dateDelivered?: string;
+  qtyRequested: number;
+  qtyDelivered: number;
+  qtyPending: number;
   leadTimeDays?: number;
   daysCount?: number;
   aging?: number;
@@ -68,14 +60,7 @@ export interface ProcurementRequest {
   buyerId?: string;
   isPublic: boolean;
   files?: RequestFile[];
-  items: RequestItem[];
-  // These fields are calculated from items but we need them in the type
-  qtyRequested?: number;
-  qtyDelivered?: number;
-  qtyPending?: number;
 }
-
-export type PerformancePeriod = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export interface BuyerPerformance {
   buyerId: string;
@@ -88,7 +73,7 @@ export interface BuyerPerformance {
   linesPartiallyDelivered: number;
   deliveredOnTimePercentage: number;
   totalDeliveredPercentage: number;
-  period: PerformancePeriod;
+  period: string;
 }
 
 export interface DashboardStats {
@@ -98,15 +83,4 @@ export interface DashboardStats {
   onTimeDelivery: number;
   lateDelivery: number;
   priorityItems: number;
-}
-
-export interface ActivityLog {
-  id: string;
-  userId: string;
-  userName: string;
-  userRole: UserRole;
-  action: string;
-  details: string;
-  requestId?: string;
-  timestamp: string;
 }

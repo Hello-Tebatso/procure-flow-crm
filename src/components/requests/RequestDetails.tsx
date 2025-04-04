@@ -1,7 +1,7 @@
 
 import { useProcurement } from "@/contexts/ProcurementContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { ProcurementRequest, ProcurementStage, RequestFile, RequestItem, User } from "@/types";
+import { ProcurementRequest, ProcurementStage, RequestFile, User } from "@/types";
 import { mockUsers } from "@/lib/mock-data";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
 import {
   Select,
@@ -34,9 +33,6 @@ import {
   Eye,
   EyeOff, 
   FileText, 
-  Pencil,
-  Plus,
-  Trash2,
   Upload, 
   X 
 } from "lucide-react";
@@ -46,25 +42,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 
 interface RequestDetailsProps {
   request: ProcurementRequest;
@@ -94,11 +71,8 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
     declineRequest,
     updateStage,
     updateRequest,
-    toggleFileVisibility,
-    uploadFile,
-    addRequestItem,
-    updateRequestItem,
-    deleteRequestItem
+    togglePublicStatus,
+    uploadFile
   } = useProcurement();
   const { toast } = useToast();
 
@@ -107,19 +81,6 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
   const [actionComment, setActionComment] = useState("");
   const [selectedBuyer, setSelectedBuyer] = useState<string>("");
   const [uploading, setUploading] = useState(false);
-  const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
-  const [newItem, setNewItem] = useState<Partial<RequestItem>>({
-    description: "",
-    qtyRequested: 1
-  });
-  const [editingItem, setEditingItem] = useState<RequestItem | null>(null);
-  const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
-  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
-  const [acceptFormData, setAcceptFormData] = useState({
-    entity: request.entity || "MGP Investments",
-    placeOfDelivery: request.placeOfDelivery || "",
-    placeOfArrival: request.placeOfArrival || "",
-  });
   
   const buyers = mockUsers.filter(u => u.role === "buyer");
   const requestBuyer = request.buyerId 
@@ -128,12 +89,11 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
 
   const isAdmin = user?.role === "admin";
   const isBuyer = user?.role === "buyer";
-  const isClient = user?.role === "client";
   const isAssignedBuyer = user?.id === request.buyerId;
   const canManageRequest = isAdmin || isAssignedBuyer;
   
   const handleAcceptRequest = async () => {
-    if (isAdmin && !selectedBuyer) {
+    if (!selectedBuyer) {
       toast({
         title: "Error",
         description: "Please select a buyer to assign the request",
@@ -143,17 +103,8 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
     }
     
     setLoading(true);
-    const success = await acceptRequest(
-      request.id, 
-      selectedBuyer,
-      isAdmin ? {
-        entity: acceptFormData.entity,
-        placeOfDelivery: acceptFormData.placeOfDelivery,
-        placeOfArrival: acceptFormData.placeOfArrival
-      } : undefined
-    );
+    const success = await acceptRequest(request.id, selectedBuyer);
     setLoading(false);
-    setAcceptDialogOpen(false);
     
     if (success) {
       onUpdate();
@@ -201,9 +152,9 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
     onUpdate();
   };
   
-  const handleToggleFileVisibility = async (fileId: string) => {
+  const handleTogglePublic = async () => {
     setLoading(true);
-    const success = await toggleFileVisibility(request.id, fileId);
+    const success = await togglePublicStatus(request.id);
     setLoading(false);
     
     if (success) {
@@ -228,85 +179,6 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
       } finally {
         setUploading(false);
       }
-    }
-  };
-
-  const handleAddItem = async () => {
-    if (!newItem.description) {
-      toast({
-        title: "Error",
-        description: "Item description is required",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await addRequestItem(request.id, newItem);
-      setNewItem({ description: "", qtyRequested: 1 });
-      setNewItemDialogOpen(false);
-      onUpdate();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add item",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateItem = async () => {
-    if (!editingItem || !editingItem.description) {
-      toast({
-        title: "Error",
-        description: "Item description is required",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await updateRequestItem(request.id, editingItem.id, editingItem);
-      setEditingItem(null);
-      setEditItemDialogOpen(false);
-      onUpdate();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update item",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteItem = async (itemId: string) => {
-    if (request.items.length <= 1) {
-      toast({
-        title: "Error",
-        description: "Cannot delete the only item in a request",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await deleteRequestItem(request.id, itemId);
-      onUpdate();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete item",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
     }
   };
   
@@ -375,13 +247,33 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
               Priority: Over
             </Badge>
           )}
+          
+          {canManageRequest && request.status === "accepted" && (
+            <Button 
+              size="sm"
+              variant="outline"
+              className={request.isPublic ? "bg-green-50" : "bg-gray-100"}
+              onClick={handleTogglePublic}
+            >
+              {request.isPublic ? (
+                <>
+                  <Eye className="h-3.5 w-3.5 mr-1" />
+                  Public
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3.5 w-3.5 mr-1" />
+                  Private
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
       <Tabs defaultValue="details" className="w-full">
         <TabsList className="w-full md:w-auto">
           <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="items">Items</TabsTrigger>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="actions">Actions</TabsTrigger>
         </TabsList>
@@ -406,6 +298,16 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Entity</p>
                   <p className="font-medium">{request.entity}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Description</p>
+                  <p className="font-medium">{request.description}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Vendor</p>
+                  <p className="font-medium">{request.vendor || "Not assigned"}</p>
                 </div>
 
                 <div className="space-y-1">
@@ -448,17 +350,17 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                 )}
 
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Total Quantity Requested</p>
+                  <p className="text-sm text-muted-foreground">Quantity Requested</p>
                   <p className="font-medium">{request.qtyRequested}</p>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Total Quantity Delivered</p>
+                  <p className="text-sm text-muted-foreground">Quantity Delivered</p>
                   <p className="font-medium">{request.qtyDelivered}</p>
                 </div>
 
                 <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Total Quantity Pending</p>
+                  <p className="text-sm text-muted-foreground">Quantity Pending</p>
                   <p className="font-medium">{request.qtyPending}</p>
                 </div>
 
@@ -530,226 +432,6 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
             </Card>
           )}
         </TabsContent>
-        
-        <TabsContent value="items" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle>Request Items</CardTitle>
-              {canManageRequest && request.status === "accepted" && (
-                <Dialog open={newItemDialogOpen} onOpenChange={setNewItemDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Item
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add New Item</DialogTitle>
-                      <DialogDescription>
-                        Add a new item to this procurement request
-                      </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <label htmlFor="item-description" className="text-sm font-medium">
-                          Description
-                        </label>
-                        <Textarea
-                          id="item-description"
-                          value={newItem.description}
-                          onChange={(e) => setNewItem({...newItem, description: e.target.value})}
-                          placeholder="Item description"
-                          rows={3}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label htmlFor="item-qty" className="text-sm font-medium">
-                          Quantity Requested
-                        </label>
-                        <Input
-                          id="item-qty"
-                          type="number"
-                          min="1"
-                          value={newItem.qtyRequested}
-                          onChange={(e) => setNewItem({...newItem, qtyRequested: Number(e.target.value)})}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label htmlFor="item-number" className="text-sm font-medium">
-                          Item Number (Optional)
-                        </label>
-                        <Input
-                          id="item-number"
-                          value={newItem.itemNumber || ""}
-                          onChange={(e) => setNewItem({...newItem, itemNumber: e.target.value})}
-                          placeholder="Item or part number"
-                        />
-                      </div>
-                    </div>
-                    
-                    <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setNewItemDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="button" onClick={handleAddItem} disabled={loading}>
-                        {loading ? "Adding..." : "Add Item"}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Line</TableHead>
-                    <TableHead>Item #</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Qty Requested</TableHead>
-                    <TableHead className="text-right">Qty Delivered</TableHead>
-                    <TableHead className="text-right">Qty Pending</TableHead>
-                    {canManageRequest && request.status === "accepted" && (
-                      <TableHead className="text-right">Actions</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {request.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.line}</TableCell>
-                      <TableCell>{item.itemNumber || "—"}</TableCell>
-                      <TableCell className="max-w-xs truncate">{item.description}</TableCell>
-                      <TableCell className="text-right">{item.qtyRequested}</TableCell>
-                      <TableCell className="text-right">{item.qtyDelivered}</TableCell>
-                      <TableCell className="text-right">{item.qtyPending}</TableCell>
-                      {canManageRequest && request.status === "accepted" && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end space-x-2">
-                            <Dialog open={editItemDialogOpen && editingItem?.id === item.id} onOpenChange={(open) => {
-                              if (!open) setEditingItem(null);
-                              setEditItemDialogOpen(open);
-                            }}>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setEditingItem({...item})}
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                  <span className="sr-only">Edit</span>
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Edit Item</DialogTitle>
-                                  <DialogDescription>
-                                    Update item details
-                                  </DialogDescription>
-                                </DialogHeader>
-                                
-                                {editingItem && (
-                                  <div className="space-y-4 py-4">
-                                    <div className="space-y-2">
-                                      <label htmlFor="edit-description" className="text-sm font-medium">
-                                        Description
-                                      </label>
-                                      <Textarea
-                                        id="edit-description"
-                                        value={editingItem.description}
-                                        onChange={(e) => setEditingItem({...editingItem, description: e.target.value})}
-                                        rows={3}
-                                      />
-                                    </div>
-                                    
-                                    <div className="space-y-2">
-                                      <label htmlFor="edit-item-number" className="text-sm font-medium">
-                                        Item Number
-                                      </label>
-                                      <Input
-                                        id="edit-item-number"
-                                        value={editingItem.itemNumber || ""}
-                                        onChange={(e) => setEditingItem({...editingItem, itemNumber: e.target.value})}
-                                      />
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <label htmlFor="edit-qty-requested" className="text-sm font-medium">
-                                          Quantity Requested
-                                        </label>
-                                        <Input
-                                          id="edit-qty-requested"
-                                          type="number"
-                                          min="1"
-                                          value={editingItem.qtyRequested}
-                                          onChange={(e) => setEditingItem({
-                                            ...editingItem, 
-                                            qtyRequested: Number(e.target.value),
-                                            qtyPending: Number(e.target.value) - editingItem.qtyDelivered
-                                          })}
-                                        />
-                                      </div>
-                                      
-                                      <div className="space-y-2">
-                                        <label htmlFor="edit-qty-delivered" className="text-sm font-medium">
-                                          Quantity Delivered
-                                        </label>
-                                        <Input
-                                          id="edit-qty-delivered"
-                                          type="number"
-                                          min="0"
-                                          max={editingItem.qtyRequested}
-                                          value={editingItem.qtyDelivered}
-                                          onChange={(e) => setEditingItem({
-                                            ...editingItem, 
-                                            qtyDelivered: Number(e.target.value),
-                                            qtyPending: editingItem.qtyRequested - Number(e.target.value)
-                                          })}
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                <DialogFooter>
-                                  <Button type="button" variant="outline" onClick={() => {
-                                    setEditingItem(null);
-                                    setEditItemDialogOpen(false);
-                                  }}>
-                                    Cancel
-                                  </Button>
-                                  <Button type="button" onClick={handleUpdateItem} disabled={loading}>
-                                    {loading ? "Updating..." : "Update Item"}
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                            
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleDeleteItem(item.id)}
-                              disabled={loading || request.items.length <= 1}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              <span className="sr-only">Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="files">
           <Card>
@@ -792,39 +474,17 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {canManageRequest && (
-                          <Button 
-                            size="sm"
-                            variant="ghost"
-                            className={file.isPublic ? "text-green-600" : "text-amber-600"}
-                            onClick={() => handleToggleFileVisibility(file.id)}
-                          >
-                            {file.isPublic ? (
-                              <>
-                                <Eye className="h-4 w-4 mr-2" />
-                                Public
-                              </>
-                            ) : (
-                              <>
-                                <EyeOff className="h-4 w-4 mr-2" />
-                                Private
-                              </>
-                            )}
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm"
-                          variant="ghost"
-                          className="text-procurement-primary"
-                          asChild
-                        >
-                          <a href={file.url} download={file.name}>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </a>
-                        </Button>
-                      </div>
+                      <Button 
+                        size="sm"
+                        variant="ghost"
+                        className="text-procurement-primary"
+                        asChild
+                      >
+                        <a href={file.url} download={file.name}>
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </a>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -845,7 +505,7 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                 <CardHeader>
                   <CardTitle>Process Request</CardTitle>
                   <CardDescription>
-                    {isAdmin ? "Assign to a buyer and accept this request" : "Accept or decline this procurement request"}
+                    Accept or decline this procurement request
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -868,85 +528,15 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                       </Select>
                     </div>
                   )}
-
+                  
                   <div className="flex space-x-4">
-                    {isAdmin ? (
-                      <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button 
-                            disabled={!selectedBuyer}
-                          >
-                            <Check className="h-4 w-4 mr-2" />
-                            Accept & Configure
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-md">
-                          <DialogHeader>
-                            <DialogTitle>Accept Request</DialogTitle>
-                            <DialogDescription>
-                              Configure additional details before accepting the request
-                            </DialogDescription>
-                          </DialogHeader>
-                          
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <label htmlFor="entity" className="text-sm font-medium">
-                                Entity
-                              </label>
-                              <Input
-                                id="entity"
-                                value={acceptFormData.entity}
-                                onChange={(e) => setAcceptFormData({...acceptFormData, entity: e.target.value})}
-                              />
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <label htmlFor="placeOfDelivery" className="text-sm font-medium">
-                                Place of Delivery
-                              </label>
-                              <Input
-                                id="placeOfDelivery"
-                                value={acceptFormData.placeOfDelivery}
-                                onChange={(e) => setAcceptFormData({...acceptFormData, placeOfDelivery: e.target.value})}
-                              />
-                            </div>
-                            
-                            <div className="space-y-2">
-                              <label htmlFor="placeOfArrival" className="text-sm font-medium">
-                                Place of Arrival (Optional)
-                              </label>
-                              <Input
-                                id="placeOfArrival"
-                                value={acceptFormData.placeOfArrival}
-                                onChange={(e) => setAcceptFormData({...acceptFormData, placeOfArrival: e.target.value})}
-                              />
-                            </div>
-                          </div>
-                          
-                          <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setAcceptDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button 
-                              type="button" 
-                              onClick={handleAcceptRequest} 
-                              disabled={loading || !acceptFormData.entity || !acceptFormData.placeOfDelivery}
-                            >
-                              {loading ? "Accepting..." : "Accept Request"}
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    ) : (
-                      <Button 
-                        onClick={handleAcceptRequest}
-                        disabled={loading}
-                      >
-                        <Check className="h-4 w-4 mr-2" />
-                        Accept Request
-                      </Button>
-                    )}
-                    
+                    <Button 
+                      onClick={handleAcceptRequest} 
+                      disabled={loading || (!selectedBuyer && isAdmin)}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Accept Request
+                    </Button>
                     <Button 
                       variant="outline"
                       className="text-red-500 hover:text-red-600 hover:bg-red-50"
