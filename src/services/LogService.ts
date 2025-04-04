@@ -22,7 +22,7 @@ export class LogService {
         timestamp: new Date().toISOString()
       };
       
-      // Save to Supabase
+      // Use untyped client to avoid TypeScript errors
       const { data, error } = await supabase
         .from('activity_logs')
         .insert(log)
@@ -34,6 +34,7 @@ export class LogService {
         return null;
       }
       
+      // Cast the data to ActivityLog
       return data as ActivityLog;
     } catch (error) {
       console.error("Error in logActivity:", error);
@@ -63,6 +64,7 @@ export class LogService {
         return [];
       }
       
+      // Cast data to ActivityLog[]
       return data as ActivityLog[];
     } catch (error) {
       console.error("Error in getActivityLogs:", error);

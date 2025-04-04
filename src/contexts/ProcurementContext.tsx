@@ -34,22 +34,34 @@ export const ProcurementProvider: React.FC<{
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: requestsData, error: requestsError } = await supabase
           .from('procurement_requests')
-          .select(`
-            *,
-            items:request_items(*)
-          `);
+          .select('*');
           
-        if (error) {
-          console.error("Error fetching requests:", error);
+        if (requestsError) {
+          console.error("Error fetching requests:", requestsError);
           fallbackToMockData();
           return;
         }
         
-        if (data && data.length > 0) {
-          const transformedData = data.map(req => transformRequestFromDB(req));
-          setRequests(transformedData);
+        if (requestsData && requestsData.length > 0) {
+          const transformedRequests = await Promise.all(
+            requestsData.map(async (req: any) => {
+              const { data: itemsData, error: itemsError } = await supabase
+                .from('request_items')
+                .select('*')
+                .eq('request_id', req.id);
+                
+              if (itemsError) {
+                console.error("Error fetching items for request:", req.id, itemsError);
+                return transformRequestFromDB(req, []);
+              }
+              
+              return transformRequestFromDB(req, itemsData || []);
+            })
+          );
+          
+          setRequests(transformedRequests);
         } else {
           fallbackToMockData();
         }
@@ -82,13 +94,7 @@ export const ProcurementProvider: React.FC<{
       setRequests(updatedMockData);
     };
     
-    const transformRequestFromDB = (dbData: any): ProcurementRequest => {
-      const items = dbData.items || [];
-      
-      const qtyRequested = items.reduce((total: number, item: any) => total + (parseFloat(item.qty_requested) || 0), 0);
-      const qtyDelivered = items.reduce((total: number, item: any) => total + (parseFloat(item.qty_delivered) || 0), 0);
-      const qtyPending = qtyRequested - qtyDelivered;
-      
+    const transformRequestFromDB = (dbData: any, items: any[]): ProcurementRequest => {
       const transformedItems: RequestItem[] = items.map((item: any, index: number) => ({
         id: item.id,
         itemNumber: item.item_number,
@@ -98,6 +104,10 @@ export const ProcurementProvider: React.FC<{
         qtyPending: parseFloat(item.qty_requested) - parseFloat(item.qty_delivered) || 0,
         line: index + 1
       }));
+      
+      const qtyRequested = transformedItems.reduce((total: number, item: RequestItem) => total + item.qtyRequested, 0);
+      const qtyDelivered = transformedItems.reduce((total: number, item: RequestItem) => total + item.qtyDelivered, 0);
+      const qtyPending = qtyRequested - qtyDelivered;
       
       return {
         id: dbData.id,
