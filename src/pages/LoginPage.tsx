@@ -298,4 +298,7 @@ const LoginPage = () => {
         </Card>
       </div>
     </div>
-  
+  );
+};
+
+export default LoginPage;
