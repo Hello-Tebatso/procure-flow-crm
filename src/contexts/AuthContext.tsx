@@ -10,7 +10,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
-  loginWithMock: (role: UserRole) => void; // For development only
+  loginAsBuyerOrClient: (email: string, role: UserRole) => void; // For buyer/client login
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,7 +21,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Check for saved user on mount
   useEffect(() => {
-    const savedUser = localStorage.getItem("procure-flow-user");
+    const savedUser = localStorage.getItem("mgp-user");
     if (savedUser) {
       const parsedUser = JSON.parse(savedUser);
       setUser(parsedUser);
@@ -29,7 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
-  // Setup Supabase auth listener
+  // Setup Supabase auth listener (for admin only)
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -37,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fetchUserProfile(session.user.id);
         } else if (event === "SIGNED_OUT") {
           setUser(null);
-          localStorage.removeItem("procure-flow-user");
+          localStorage.removeItem("mgp-user");
         }
       }
     );
@@ -73,11 +73,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         
         setUser(userProfile);
-        localStorage.setItem("procure-flow-user", JSON.stringify(userProfile));
+        localStorage.setItem("mgp-user", JSON.stringify(userProfile));
         
         // Log activity
         if (userProfile) {
-          logActivity(
+          await logActivity(
             userProfile,
             LogActions.LOGIN,
             "auth",
@@ -111,6 +111,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Simplified login for buyers and clients without authentication
+  const loginAsBuyerOrClient = (email: string, role: UserRole) => {
+    if (role !== 'buyer' && role !== 'client') {
+      return; // Only allow buyer and client roles
+    }
+
+    const userExists = mockUsers.find(u => u.email === email && u.role === role);
+    let userProfile: User;
+
+    if (userExists) {
+      userProfile = userExists;
+    } else {
+      // Create a new user record
+      userProfile = {
+        id: `user_${Date.now()}`,
+        name: email.split('@')[0],
+        email: email,
+        role: role,
+        avatar: '/placeholder.svg'
+      };
+    }
+
+    setUser(userProfile);
+    localStorage.setItem("mgp-user", JSON.stringify(userProfile));
+
+    // Log activity
+    logActivity(
+      userProfile,
+      LogActions.LOGIN,
+      "auth",
+      userProfile.id
+    );
+  };
+
   const logout = async () => {
     // Log activity before logging out
     if (user) {
@@ -122,22 +156,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
     
-    await supabase.auth.signOut();
-    setUser(null);
-    localStorage.removeItem("procure-flow-user");
-  };
-
-  // For development only - to easily switch between user roles
-  const loginWithMock = (role: UserRole) => {
-    const mockUser = mockUsers.find(u => u.role === role);
-    if (mockUser) {
-      setUser(mockUser);
-      localStorage.setItem("procure-flow-user", JSON.stringify(mockUser));
+    // If admin, sign out from Supabase
+    if (user?.role === 'admin') {
+      await supabase.auth.signOut();
     }
+    
+    setUser(null);
+    localStorage.removeItem("mgp-user");
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, loginWithMock }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, loginAsBuyerOrClient }}>
       {children}
     </AuthContext.Provider>
   );

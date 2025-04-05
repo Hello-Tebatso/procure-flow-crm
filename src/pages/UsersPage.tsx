@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import MainLayout from "@/components/layout/MainLayout";
 import { mockUsers } from "@/lib/mock-data";
-import { UserRole } from "@/types";
+import { UserRole, User } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Table, 
@@ -33,11 +33,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const UsersPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [users, setUsers] = useState<typeof mockUsers>([]);
+  const [users, setUsers] = useState<(typeof mockUsers[0] & { isBlocked?: boolean })[]>([]);
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [newUser, setNewUser] = useState({
     name: "",
@@ -47,7 +49,12 @@ const UsersPage = () => {
 
   // Load mock users
   useEffect(() => {
-    setUsers(mockUsers);
+    // Add isBlocked property to users
+    const usersWithBlockedStatus = mockUsers.map(u => ({
+      ...u,
+      isBlocked: false
+    }));
+    setUsers(usersWithBlockedStatus);
   }, []);
 
   // Only admin can access this page
@@ -83,7 +90,8 @@ const UsersPage = () => {
     const createdUser = {
       ...newUser,
       id: `user${users.length + 1}`,
-      avatar: "/placeholder.svg"
+      avatar: "/placeholder.svg",
+      isBlocked: false
     };
 
     setUsers([...users, createdUser]);
@@ -98,6 +106,22 @@ const UsersPage = () => {
       title: "User created",
       description: `${createdUser.name} has been added as a ${createdUser.role}`
     });
+  };
+
+  const toggleBlockStatus = (userId: string) => {
+    setUsers(users.map(u => {
+      if (u.id === userId) {
+        const newStatus = !u.isBlocked;
+        
+        toast({
+          title: newStatus ? "User blocked" : "User unblocked",
+          description: `${u.name} has been ${newStatus ? 'blocked' : 'unblocked'}`
+        });
+        
+        return { ...u, isBlocked: newStatus };
+      }
+      return u;
+    }));
   };
 
   return (
@@ -175,6 +199,7 @@ const UsersPage = () => {
                   <TableHead className="text-white">Name</TableHead>
                   <TableHead className="text-white">Email</TableHead>
                   <TableHead className="text-white">Role</TableHead>
+                  <TableHead className="text-white">Status</TableHead>
                   <TableHead className="text-white text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -198,10 +223,27 @@ const UsersPage = () => {
                         {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant={user.isBlocked ? "destructive" : "outline"}>
+                        {user.isBlocked ? "Blocked" : "Active"}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center space-x-2">
+                          <Switch 
+                            checked={!user.isBlocked} 
+                            onCheckedChange={() => toggleBlockStatus(user.id)} 
+                            id={`block-${user.id}`}
+                          />
+                          <Label htmlFor={`block-${user.id}`}>
+                            {user.isBlocked ? "Unblock" : "Block"}
+                          </Label>
+                        </div>
+                        <Button variant="ghost" size="sm">
+                          Edit
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

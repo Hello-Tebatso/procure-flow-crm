@@ -11,3 +11,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: localStorage
   }
 });
+
+// Utility function to check if the current user is an admin
+export const isUserAdmin = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return !!user; // Only admins use Supabase auth
+};

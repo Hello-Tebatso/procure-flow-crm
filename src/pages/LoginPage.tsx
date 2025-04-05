@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { UserRole } from "@/types";
 
 import {
   Card,
@@ -22,28 +23,49 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader } from "lucide-react";
 
-const formSchema = z.object({
+const adminFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+const userFormSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  role: z.enum(["buyer", "client"]),
+});
+
+type AdminFormValues = z.infer<typeof adminFormSchema>;
+type UserFormValues = z.infer<typeof userFormSchema>;
 
 const LoginPage = () => {
-  const { user, login, loading } = useAuth();
+  const { user, login, loginAsBuyerOrClient, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<UserRole | "admin">("client");
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const adminForm = useForm<AdminFormValues>({
+    resolver: zodResolver(adminFormSchema),
     defaultValues: {
       email: "",
       password: "",
+    },
+  });
+
+  const userForm = useForm<UserFormValues>({
+    resolver: zodResolver(userFormSchema),
+    defaultValues: {
+      email: "",
+      role: "client",
     },
   });
 
@@ -54,7 +76,7 @@ const LoginPage = () => {
     }
   }, [user, navigate]);
 
-  const onSubmit = async (data: FormValues) => {
+  const onSubmitAdmin = async (data: AdminFormValues) => {
     setIsSubmitting(true);
     const success = await login(data.email, data.password);
     
@@ -68,6 +90,35 @@ const LoginPage = () => {
     
     setIsSubmitting(false);
   };
+
+  const onSubmitUser = (data: UserFormValues) => {
+    setIsSubmitting(true);
+    
+    try {
+      loginAsBuyerOrClient(data.email, data.role as UserRole);
+      toast({
+        title: "Login Successful",
+        description: `Welcome, ${data.email.split('@')[0]}!`,
+      });
+      
+      navigate("/dashboard");
+    } catch (error) {
+      toast({
+        title: "Login Failed",
+        description: "An error occurred during login",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Update role when tab changes
+  useEffect(() => {
+    if (activeTab === "buyer" || activeTab === "client") {
+      userForm.setValue("role", activeTab);
+    }
+  }, [activeTab, userForm]);
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -90,11 +141,11 @@ const LoginPage = () => {
           <div className="flex items-center">
             <img
               src="/lovable-uploads/0e327c2e-74bc-454a-8543-770c4d91ee88.png"
-              alt="ProcureFlow Logo"
+              alt="MGP Logo"
               className="h-12 w-12"
             />
             <h1 className="ml-3 text-2xl font-bold text-procurement-primary">
-              ProcureFlow
+              MGP
             </h1>
           </div>
         </div>
@@ -107,70 +158,144 @@ const LoginPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit(onSubmit)}
-                className="space-y-4"
-              >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="your@email.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+              <TabsList className="grid grid-cols-3 mb-4">
+                <TabsTrigger value="client">Client</TabsTrigger>
+                <TabsTrigger value="buyer">Buyer</TabsTrigger>
+                <TabsTrigger value="admin">Admin</TabsTrigger>
+              </TabsList>
 
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Client and Buyer Login Form */}
+              <TabsContent value="client">
+                <Form {...userForm}>
+                  <form
+                    onSubmit={userForm.handleSubmit(onSubmitUser)}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={userForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="your@email.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <input type="hidden" {...userForm.register("role")} value="client" />
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      {isSubmitting ? "Logging in..." : "Login as Client"}
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <Loader className="h-4 w-4 mr-2 animate-spin" />
-                  ) : null}
-                  {isSubmitting ? "Logging in..." : "Login"}
-                </Button>
-              </form>
-            </Form>
+              <TabsContent value="buyer">
+                <Form {...userForm}>
+                  <form
+                    onSubmit={userForm.handleSubmit(onSubmitUser)}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={userForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="your@email.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <input type="hidden" {...userForm.register("role")} value="buyer" />
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      {isSubmitting ? "Logging in..." : "Login as Buyer"}
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+
+              {/* Admin Login Form */}
+              <TabsContent value="admin">
+                <Form {...adminForm}>
+                  <form
+                    onSubmit={adminForm.handleSubmit(onSubmitAdmin)}
+                    className="space-y-4"
+                  >
+                    <FormField
+                      control={adminForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="admin@example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={adminForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader className="h-4 w-4 mr-2 animate-spin" />
+                      ) : null}
+                      {isSubmitting ? "Logging in..." : "Login as Admin"}
+                    </Button>
+                  </form>
+                </Form>
+              </TabsContent>
+            </Tabs>
 
             <div className="mt-4 text-center">
               <p className="text-sm text-muted-foreground">
-                For testing, use one of these accounts:
+                For testing, use these emails:
               </p>
               <div className="mt-2 text-xs text-muted-foreground">
-                <p>Admin: admin@example.com</p>
-                <p>Buyer: gabriel@example.com</p>
-                <p>Client: client@example.com</p>
-                <p className="text-procurement-primary text-xs mt-1">
-                  (Any password will work)
-                </p>
+                <p>Admin: admin@example.com (with any password)</p>
+                <p>Buyer: Enter any email with @example.com</p>
+                <p>Client: Enter any email with @example.com</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
-  );
-};
-
-export default LoginPage;
+  
