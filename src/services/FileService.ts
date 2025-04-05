@@ -46,7 +46,9 @@ export async function uploadRequestFile(
 
     // Log activity
     await logActivity(
-      user,
+      user.id,
+      user.name,
+      user.role,
       LogActions.UPLOAD_FILE,
       "file",
       data.id,

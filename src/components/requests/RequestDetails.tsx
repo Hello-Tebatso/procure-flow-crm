@@ -1,9 +1,8 @@
 
 import { useProcurement } from "@/contexts/ProcurementContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { ProcurementRequest, ProcurementStage, RequestFile, User } from "@/types";
-import { mockUsers } from "@/lib/mock-data";
-import { useState } from "react";
+import { ProcurementRequest, ProcurementStage, RequestFile, User, RequestItem } from "@/types";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +10,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import {
   Select,
@@ -28,13 +28,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { 
   Check, 
-  Clock, 
+  Clock,
   Download,
+  Edit,
   Eye,
   EyeOff, 
   FileText, 
   Upload, 
-  X 
+  X,
+  Loader,
+  Plus,
+  Trash 
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -42,6 +46,50 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+// Define schemas for forms
+const requestEditSchema = z.object({
+  description: z.string().min(5, "Description must be at least 5 characters"),
+  entity: z.string().min(2, "Entity must be at least 2 characters"),
+  placeOfDelivery: z.string().min(2, "Place of delivery is required"),
+  placeOfArrival: z.string().optional(),
+  expDeliveryDate: z.string().optional(),
+  poNumber: z.string().optional(),
+});
+
+const requestItemSchema = z.object({
+  itemNumber: z.string().min(1, "Item number is required"),
+  description: z.string().min(5, "Description must be at least 5 characters"),
+  qtyRequested: z.coerce.number().positive("Quantity must be positive"),
+  unitPrice: z.coerce.number().positive("Unit price must be positive").optional(),
+});
 
 interface RequestDetailsProps {
   request: ProcurementRequest;
@@ -72,7 +120,9 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
     updateStage,
     updateRequest,
     togglePublicStatus,
-    uploadFile
+    uploadFile,
+    addOrUpdateRequestItem,
+    getRequestItems
   } = useProcurement();
   const { toast } = useToast();
 
@@ -81,16 +131,57 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
   const [actionComment, setActionComment] = useState("");
   const [selectedBuyer, setSelectedBuyer] = useState<string>("");
   const [uploading, setUploading] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [itemDialogOpen, setItemDialogOpen] = useState(false);
+  const [requestItems, setRequestItems] = useState<RequestItem[]>(request.items || []);
+  const [selectedItem, setSelectedItem] = useState<RequestItem | null>(null);
   
-  const buyers = mockUsers.filter(u => u.role === "buyer");
-  const requestBuyer = request.buyerId 
-    ? mockUsers.find(u => u.id === request.buyerId) 
-    : null;
+  // Initialize forms
+  const editForm = useForm<z.infer<typeof requestEditSchema>>({
+    resolver: zodResolver(requestEditSchema),
+    defaultValues: {
+      description: request.description,
+      entity: request.entity,
+      placeOfDelivery: request.placeOfDelivery,
+      placeOfArrival: request.placeOfArrival || "",
+      expDeliveryDate: request.expDeliveryDate ? new Date(request.expDeliveryDate).toISOString().split("T")[0] : "",
+      poNumber: request.poNumber || "",
+    }
+  });
 
+  const itemForm = useForm<z.infer<typeof requestItemSchema>>({
+    resolver: zodResolver(requestItemSchema),
+    defaultValues: {
+      itemNumber: "",
+      description: "",
+      qtyRequested: 1,
+      unitPrice: undefined,
+    }
+  });
+  
+  // Fetch items
+  useEffect(() => {
+    if (request.id) {
+      const fetchItems = async () => {
+        const items = await getRequestItems(request.id);
+        setRequestItems(items);
+      };
+      
+      fetchItems();
+    }
+  }, [request.id, getRequestItems]);
+  
   const isAdmin = user?.role === "admin";
   const isBuyer = user?.role === "buyer";
+  const isClient = user?.role === "client";
   const isAssignedBuyer = user?.id === request.buyerId;
   const canManageRequest = isAdmin || isAssignedBuyer;
+  
+  // Check if client can edit this request (pending and not assigned to a buyer)
+  const canClientEditRequest = isClient && 
+    user?.id === request.clientId && 
+    request.status === 'pending' && 
+    !request.buyerId;
   
   const handleAcceptRequest = async () => {
     if (!selectedBuyer) {
@@ -182,6 +273,111 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
     }
   };
   
+  const handleSaveRequestEdit = async (data: z.infer<typeof requestEditSchema>) => {
+    setLoading(true);
+    
+    try {
+      const updatedRequest = await updateRequest(request.id, {
+        description: data.description,
+        entity: data.entity,
+        placeOfDelivery: data.placeOfDelivery,
+        placeOfArrival: data.placeOfArrival,
+        expDeliveryDate: data.expDeliveryDate,
+        poNumber: data.poNumber,
+      });
+      
+      if (updatedRequest) {
+        toast({
+          title: "Request Updated",
+          description: "Your changes have been saved successfully"
+        });
+        
+        setEditDialogOpen(false);
+        onUpdate();
+      }
+    } catch (error) {
+      console.error("Error updating request:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update the request",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const openAddItemDialog = () => {
+    setSelectedItem(null);
+    itemForm.reset({
+      itemNumber: "",
+      description: "",
+      qtyRequested: 1,
+      unitPrice: undefined,
+    });
+    setItemDialogOpen(true);
+  };
+  
+  const openEditItemDialog = (item: RequestItem) => {
+    setSelectedItem(item);
+    itemForm.reset({
+      itemNumber: item.itemNumber,
+      description: item.description,
+      qtyRequested: item.qtyRequested,
+      unitPrice: item.unitPrice,
+    });
+    setItemDialogOpen(true);
+  };
+  
+  const handleSaveItem = async (data: z.infer<typeof requestItemSchema>) => {
+    setLoading(true);
+    
+    try {
+      const totalPrice = data.unitPrice ? data.unitPrice * data.qtyRequested : undefined;
+      
+      const itemData: Partial<RequestItem> = {
+        ...data,
+        totalPrice,
+        requestId: request.id,
+      };
+      
+      if (selectedItem) {
+        itemData.id = selectedItem.id;
+      }
+      
+      const savedItem = await addOrUpdateRequestItem(request.id, itemData);
+      
+      if (savedItem) {
+        // Update the items list
+        if (selectedItem) {
+          setRequestItems(prev => prev.map(item => 
+            item.id === savedItem.id ? savedItem : item
+          ));
+        } else {
+          setRequestItems(prev => [...prev, savedItem]);
+        }
+        
+        toast({
+          title: selectedItem ? "Item Updated" : "Item Added",
+          description: `Item has been ${selectedItem ? "updated" : "added"} successfully`
+        });
+        
+        setItemDialogOpen(false);
+        // Refresh request data
+        onUpdate();
+      }
+    } catch (error) {
+      console.error("Error saving item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save the item",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const getStageBadgeClass = (stageValue: ProcurementStage) => {
     switch (stageValue) {
       case "New Request":
@@ -268,12 +464,25 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
               )}
             </Button>
           )}
+          
+          {/* Edit button for clients with pending unassigned requests */}
+          {canClientEditRequest && (
+            <Button 
+              size="sm"
+              variant="outline"
+              onClick={() => setEditDialogOpen(true)}
+            >
+              <Edit className="h-3.5 w-3.5 mr-1" />
+              Edit
+            </Button>
+          )}
         </div>
       </div>
 
       <Tabs defaultValue="details" className="w-full">
         <TabsList className="w-full md:w-auto">
           <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="items">Items</TabsTrigger>
           <TabsTrigger value="files">Files</TabsTrigger>
           <TabsTrigger value="actions">Actions</TabsTrigger>
         </TabsList>
@@ -393,9 +602,21 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                 </div>
               </div>
             </CardContent>
+            
+            {canClientEditRequest && (
+              <CardFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setEditDialogOpen(true)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Request
+                </Button>
+              </CardFooter>
+            )}
           </Card>
 
-          {requestBuyer && (
+          {request.buyerId && (
             <Card>
               <CardHeader>
                 <CardTitle>Assigned Buyer</CardTitle>
@@ -403,14 +624,14 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
               <CardContent>
                 <div className="flex items-center space-x-4">
                   <Avatar>
-                    <AvatarImage src={requestBuyer.avatar} />
+                    <AvatarImage src="/placeholder.svg" />
                     <AvatarFallback>
-                      {requestBuyer.name.charAt(0)}
+                      {request.buyer?.[0] || "B"}
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-medium">{requestBuyer.name}</p>
-                    <p className="text-sm text-muted-foreground">{requestBuyer.email}</p>
+                    <p className="font-medium">{request.buyer}</p>
+                    <p className="text-sm text-muted-foreground">MGP Procurement</p>
                   </div>
                 </div>
               </CardContent>
@@ -433,6 +654,89 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
           )}
         </TabsContent>
 
+        <TabsContent value="items">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Request Items</CardTitle>
+                {(canManageRequest || canClientEditRequest) && (
+                  <Button size="sm" onClick={openAddItemDialog}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
+                )}
+              </div>
+              <CardDescription>
+                Products and materials requested
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {requestItems.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item #</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Unit Price</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        {(canManageRequest || canClientEditRequest) && (
+                          <TableHead className="text-right">Actions</TableHead>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {requestItems.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.itemNumber}</TableCell>
+                          <TableCell>{item.description}</TableCell>
+                          <TableCell className="text-right">{item.qtyRequested}</TableCell>
+                          <TableCell className="text-right">
+                            {item.unitPrice 
+                              ? `$${item.unitPrice.toFixed(2)}` 
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.totalPrice 
+                              ? `$${item.totalPrice.toFixed(2)}` 
+                              : "-"}
+                          </TableCell>
+                          {(canManageRequest || canClientEditRequest) && (
+                            <TableCell className="text-right">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => openEditItemDialog(item)}
+                              >
+                                <Edit className="h-4 w-4 text-blue-500" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="py-8 text-center">
+                  <p className="text-muted-foreground">No items added to this request</p>
+                  {(canManageRequest || canClientEditRequest) && (
+                    <Button 
+                      variant="outline" 
+                      className="mt-4"
+                      onClick={openAddItemDialog}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add First Item
+                    </Button>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="files">
           <Card>
             <CardHeader>
@@ -442,7 +746,7 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {canManageRequest && (
+              {(canManageRequest || canClientEditRequest) && (
                 <div className="mb-6">
                   <Input
                     id="file-upload"
@@ -500,7 +804,7 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
 
         <TabsContent value="actions">
           <div className="space-y-4">
-            {request.status === "pending" && (isAdmin || isBuyer) && (
+            {request.status === "pending" && isAdmin && (
               <Card>
                 <CardHeader>
                   <CardTitle>Process Request</CardTitle>
@@ -519,11 +823,9 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                           <SelectValue placeholder="Assign to buyer" />
                         </SelectTrigger>
                         <SelectContent>
-                          {buyers.map((buyer: User) => (
-                            <SelectItem key={buyer.id} value={buyer.id}>
-                              {buyer.name}
-                            </SelectItem>
-                          ))}
+                          <SelectItem value="e8fd159b-57c4-4d36-9bd7-a59ca13057ef">Gabriel Zau</SelectItem>
+                          <SelectItem value="1d23342a-82a3-4ac8-a73f-4c800d22b2ac">Bernado Buela</SelectItem>
+                          <SelectItem value="c4e125c3-4964-4a8b-b903-18f764b22rte">Magreth Smith</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -532,9 +834,9 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                   <div className="flex space-x-4">
                     <Button 
                       onClick={handleAcceptRequest} 
-                      disabled={loading || (!selectedBuyer && isAdmin)}
+                      disabled={loading || !selectedBuyer}
                     >
-                      <Check className="h-4 w-4 mr-2" />
+                      {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
                       Accept Request
                     </Button>
                     <Button 
@@ -543,7 +845,7 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                       onClick={handleDeclineRequest}
                       disabled={loading}
                     >
-                      <X className="h-4 w-4 mr-2" />
+                      {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" />}
                       Decline Request
                     </Button>
                   </div>
@@ -577,6 +879,7 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                     onClick={handleUpdateStage} 
                     disabled={loading || stage === request.stage}
                   >
+                    {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Update Stage
                   </Button>
                 </CardContent>
@@ -602,6 +905,7 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
                     onClick={handleAddComment} 
                     disabled={loading || !actionComment.trim()}
                   >
+                    {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
                     Add Comment
                   </Button>
                 </CardContent>
@@ -627,6 +931,200 @@ const RequestDetails: React.FC<RequestDetailsProps> = ({ request, onUpdate }) =>
           </div>
         </TabsContent>
       </Tabs>
+      
+      {/* Edit Request Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Request</DialogTitle>
+            <DialogDescription>
+              Update the details of your procurement request
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(handleSaveRequestEdit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="entity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Entity</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={editForm.control}
+                  name="poNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>PO Number (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="placeOfDelivery"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Place of Delivery</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={editForm.control}
+                  name="placeOfArrival"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Place of Arrival (optional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <FormField
+                control={editForm.control}
+                name="expDeliveryDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Expected Delivery Date (optional)</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <DialogFooter>
+                <Button type="submit" disabled={loading}>
+                  {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Add/Edit Item Dialog */}
+      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{selectedItem ? "Edit Item" : "Add New Item"}</DialogTitle>
+            <DialogDescription>
+              {selectedItem 
+                ? "Update the details of this item" 
+                : "Add a new item to this procurement request"}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...itemForm}>
+            <form onSubmit={itemForm.handleSubmit(handleSaveItem)} className="space-y-4">
+              <FormField
+                control={itemForm.control}
+                name="itemNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Item Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={itemForm.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea rows={2} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={itemForm.control}
+                  name="qtyRequested"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quantity</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={itemForm.control}
+                  name="unitPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit Price (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <DialogFooter>
+                <Button type="submit" disabled={loading}>
+                  {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  {selectedItem ? "Update Item" : "Add Item"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

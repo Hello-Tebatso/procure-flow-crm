@@ -8,7 +8,6 @@ import {
   RequestItem,
   RequestComment
 } from "@/types";
-import { mockProcurementRequests } from "@/lib/mock-data";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadRequestFile, getRequestFiles } from "@/services/FileService";
@@ -17,8 +16,9 @@ import { logActivity, LogActions } from "@/services/LogService";
 interface ProcurementContextType {
   requests: ProcurementRequest[];
   userRequests: ProcurementRequest[];
-  createRequest: (request: Partial<ProcurementRequest>) => Promise<ProcurementRequest>;
-  updateRequest: (id: string, updates: Partial<ProcurementRequest>) => Promise<ProcurementRequest>;
+  createRequest: (request: Partial<ProcurementRequest>, items?: Partial<RequestItem>[]) => Promise<ProcurementRequest | null>;
+  updateRequest: (id: string, updates: Partial<ProcurementRequest>, items?: Partial<RequestItem>[]) => Promise<ProcurementRequest | null>;
+  deleteRequest: (id: string) => Promise<boolean>;
   getRequestById: (id: string) => Promise<ProcurementRequest | undefined>;
   uploadFile: (requestId: string, file: File) => Promise<RequestFile | null>;
   acceptRequest: (id: string, buyerId: string) => Promise<boolean>;
@@ -26,6 +26,8 @@ interface ProcurementContextType {
   updateStage: (id: string, stage: ProcurementRequest["stage"]) => Promise<boolean>;
   togglePublicStatus: (id: string) => Promise<boolean>;
   addComment: (requestId: string, content: string, isPublic: boolean) => Promise<RequestComment | null>;
+  addOrUpdateRequestItem: (requestId: string, item: Partial<RequestItem>) => Promise<RequestItem | null>;
+  getRequestItems: (requestId: string) => Promise<RequestItem[]>;
   isLoading: boolean;
   loadUserRequests: () => Promise<void>;
 }
@@ -41,12 +43,6 @@ export const ProcurementProvider: React.FC<{
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Initialize with mock data for demo purposes
-  useEffect(() => {
-    setRequests(mockProcurementRequests);
-  }, []);
-
-  // Load user requests from Supabase when user changes
   useEffect(() => {
     if (currentUser) {
       loadUserRequests();
@@ -56,10 +52,8 @@ export const ProcurementProvider: React.FC<{
   }, [currentUser]);
 
   const mapDbRequestToModel = async (dbRequest: any): Promise<ProcurementRequest> => {
-    // Fetch files for this request
     const files = await getRequestFiles(dbRequest.id);
-    
-    // Map database model to frontend model
+    const items = await getRequestItems(dbRequest.id);
     return {
       id: dbRequest.id,
       rfqNumber: dbRequest.rfq_number,
@@ -91,7 +85,8 @@ export const ProcurementProvider: React.FC<{
       clientId: dbRequest.client_id,
       buyerId: dbRequest.buyer_id,
       isPublic: dbRequest.is_public,
-      files
+      files,
+      items
     };
   };
 
@@ -103,20 +98,17 @@ export const ProcurementProvider: React.FC<{
       let query;
       
       if (currentUser.role === "admin") {
-        // Admins see all requests
         query = supabase
           .from("procurement_requests")
           .select("*")
           .order("created_at", { ascending: false });
       } else if (currentUser.role === "buyer") {
-        // Buyers see assigned requests or unassigned ones
         query = supabase
           .from("procurement_requests")
           .select("*")
-          .or(`buyer_id.eq.${currentUser.id},buyer_id.is.null`)
+          .eq("buyer_id", currentUser.id)
           .order("created_at", { ascending: false });
       } else {
-        // Clients see their own requests
         query = supabase
           .from("procurement_requests")
           .select("*")
@@ -133,14 +125,13 @@ export const ProcurementProvider: React.FC<{
           data.map(async (request: any) => await mapDbRequestToModel(request))
         );
         setUserRequests(mappedRequests);
+        setRequests(mappedRequests);
       }
     } catch (error) {
       console.error("Error loading user requests:", error);
-      // Fall back to mock data for demo
-      setUserRequests(mockProcurementRequests);
       toast({
         title: "Error loading requests",
-        description: "Using mock data for demonstration purposes",
+        description: "Failed to load your requests",
         variant: "destructive"
       });
     } finally {
@@ -148,17 +139,33 @@ export const ProcurementProvider: React.FC<{
     }
   };
 
-  const createRequest = async (requestData: Partial<ProcurementRequest>): Promise<ProcurementRequest> => {
+  const createRequest = async (
+    requestData: Partial<ProcurementRequest>,
+    items?: Partial<RequestItem>[]
+  ): Promise<ProcurementRequest | null> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to create a request");
+      toast({
+        title: "Error",
+        description: "User must be logged in to create a request",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    if (currentUser.role !== 'client' && currentUser.role !== 'admin') {
+      toast({
+        title: "Error",
+        description: "Only clients and admins can create requests",
+        variant: "destructive"
+      });
+      return null;
     }
     
     setIsLoading(true);
     
     try {
-      // Map frontend model to database model
       const dbRequest = {
-        rfq_number: requestData.rfqNumber || "", // Auto-generated by trigger if empty
+        rfq_number: requestData.rfqNumber || "",
         po_number: requestData.poNumber || "",
         entity: requestData.entity || "MGP Investments",
         description: requestData.description || "",
@@ -170,49 +177,41 @@ export const ProcurementProvider: React.FC<{
         qty_pending: requestData.qtyRequested || 0,
         stage: "New Request" as ProcurementStage,
         status: "pending" as RequestStatus,
-        client_id: currentUser.id, // This now uses the proper UUID format
+        client_id: currentUser.id,
         is_public: true
       };
       
-      // For demo purposes, just update the mock data for now
-      // and provide a meaningful success message
-      const newId = crypto.randomUUID();
-      const newRequest: ProcurementRequest = {
-        id: newId,
-        rfqNumber: `MGP-${new Date().getFullYear().toString().slice(-2)}-${Math.floor(1000 + Math.random() * 9000)}`,
-        poNumber: requestData.poNumber || "",
-        entity: requestData.entity || "MGP Investments",
-        description: requestData.description || "",
-        vendor: "",
-        placeOfDelivery: requestData.placeOfDelivery || "",
-        placeOfArrival: requestData.placeOfArrival || "",
-        poDate: "",
-        mgpEta: "",
-        expDeliveryDate: requestData.expDeliveryDate || "",
-        dateDelivered: "",
-        qtyRequested: requestData.qtyRequested || 0,
-        qtyDelivered: 0,
-        qtyPending: requestData.qtyRequested || 0,
-        leadTimeDays: 0,
-        daysCount: 0,
-        aging: 0,
-        priority: "",
-        buyer: "",
-        stage: "New Request",
-        actionItems: "",
-        responsible: "",
-        dateDue: "",
-        status: "pending",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        clientId: currentUser.id,
-        buyerId: "",
-        isPublic: true
-      };
+      const { data, error } = await supabase
+        .from("procurement_requests")
+        .insert(dbRequest)
+        .select()
+        .single();
       
-      // Update local state with the new mock request
-      setRequests(prev => [newRequest, ...prev]);
+      if (error) throw error;
+      
+      if (items && items.length > 0 && data) {
+        for (const item of items) {
+          await addOrUpdateRequestItem(data.id, {
+            ...item,
+            requestId: data.id
+          });
+        }
+      }
+      
+      await logActivity(
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
+        LogActions.CREATE_REQUEST,
+        "request",
+        data.id,
+        { description: data.description }
+      );
+      
+      const newRequest = await mapDbRequestToModel(data);
+      
       setUserRequests(prev => [newRequest, ...prev]);
+      setRequests(prev => [newRequest, ...prev]);
       
       toast({
         title: "Request Created",
@@ -227,21 +226,49 @@ export const ProcurementProvider: React.FC<{
         description: "Failed to create request. Please try again.",
         variant: "destructive"
       });
-      throw error;
+      return null;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateRequest = async (id: string, updates: Partial<ProcurementRequest>): Promise<ProcurementRequest> => {
+  const updateRequest = async (
+    id: string, 
+    updates: Partial<ProcurementRequest>,
+    items?: Partial<RequestItem>[]
+  ): Promise<ProcurementRequest | null> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to update a request");
+      toast({
+        title: "Error",
+        description: "User must be logged in to update a request",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    if (currentUser.role === 'client') {
+      const { data, error } = await supabase
+        .from("procurement_requests")
+        .select("*")
+        .eq("id", id)
+        .eq("client_id", currentUser.id)
+        .eq("status", "pending")
+        .is("buyer_id", null)
+        .single();
+        
+      if (error || !data) {
+        toast({
+          title: "Access Denied",
+          description: "You can only edit your own pending requests that have not been assigned to a buyer",
+          variant: "destructive"
+        });
+        return null;
+      }
     }
     
     setIsLoading(true);
     
     try {
-      // Map frontend model updates to database model
       const dbUpdates: any = {};
       
       if (updates.poNumber !== undefined) dbUpdates.po_number = updates.poNumber;
@@ -267,10 +294,8 @@ export const ProcurementProvider: React.FC<{
       if (updates.buyerId !== undefined) dbUpdates.buyer_id = updates.buyerId;
       if (updates.isPublic !== undefined) dbUpdates.is_public = updates.isPublic;
       
-      // Always update the updated_at timestamp
       dbUpdates.updated_at = new Date().toISOString();
       
-      // Update in database
       const { data, error } = await supabase
         .from("procurement_requests")
         .update(dbUpdates)
@@ -280,20 +305,31 @@ export const ProcurementProvider: React.FC<{
       
       if (error) throw error;
       
-      // Convert to frontend model
-      const updatedRequest = await mapDbRequestToModel(data);
+      if (items && items.length > 0) {
+        for (const item of items) {
+          await addOrUpdateRequestItem(id, {
+            ...item,
+            requestId: id
+          });
+        }
+      }
       
-      // Log activity
       await logActivity(
-        currentUser,
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
         LogActions.UPDATE_REQUEST,
         "request",
-        updatedRequest.id,
-        { requestNumber: updatedRequest.rfqNumber, updates: Object.keys(updates) }
+        id,
+        { updates: Object.keys(updates) }
       );
       
-      // Update local state
+      const updatedRequest = await mapDbRequestToModel(data);
+      
       setUserRequests(prev => 
+        prev.map(r => r.id === id ? updatedRequest : r)
+      );
+      setRequests(prev => 
         prev.map(r => r.id === id ? updatedRequest : r)
       );
       
@@ -310,7 +346,78 @@ export const ProcurementProvider: React.FC<{
         description: "Failed to update request",
         variant: "destructive"
       });
-      throw error;
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteRequest = async (id: string): Promise<boolean> => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "User must be logged in to delete a request",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (currentUser.role === 'client') {
+      const { data, error } = await supabase
+        .from("procurement_requests")
+        .select("*")
+        .eq("id", id)
+        .eq("client_id", currentUser.id)
+        .eq("status", "pending")
+        .is("buyer_id", null)
+        .single();
+        
+      if (error || !data) {
+        toast({
+          title: "Access Denied",
+          description: "You can only delete your own pending requests that have not been assigned to a buyer",
+          variant: "destructive"
+        });
+        return false;
+      }
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const { error } = await supabase
+        .from("procurement_requests")
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      
+      await logActivity(
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
+        LogActions.DELETE_REQUEST,
+        "request",
+        id
+      );
+      
+      setUserRequests(prev => prev.filter(r => r.id !== id));
+      setRequests(prev => prev.filter(r => r.id !== id));
+      
+      toast({
+        title: "Request Deleted",
+        description: "The request has been successfully deleted"
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error deleting request:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete request",
+        variant: "destructive"
+      });
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -326,15 +433,13 @@ export const ProcurementProvider: React.FC<{
       
       if (error) {
         console.error("Error fetching request:", error);
-        // Fall back to mock data for demo
-        return requests.find(r => r.id === id);
+        return undefined;
       }
       
       return await mapDbRequestToModel(data);
     } catch (error) {
       console.error("Error in getRequestById:", error);
-      // Fall back to mock data for demo
-      return requests.find(r => r.id === id);
+      return undefined;
     }
   };
 
@@ -347,7 +452,6 @@ export const ProcurementProvider: React.FC<{
       const result = await uploadRequestFile(requestId, file, currentUser);
       
       if (result) {
-        // Update local state
         setUserRequests(prev => {
           return prev.map(req => {
             if (req.id === requestId) {
@@ -378,16 +482,46 @@ export const ProcurementProvider: React.FC<{
 
   const acceptRequest = async (id: string, buyerId: string): Promise<boolean> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to accept a request");
+      toast({
+        title: "Error",
+        description: "User must be logged in to accept a request",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (currentUser.role !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only admins can accept requests",
+        variant: "destructive"
+      });
+      return false;
     }
     
     setIsLoading(true);
     
     try {
+      const { data: buyerData, error: buyerError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", buyerId)
+        .single();
+        
+      if (buyerError || !buyerData) {
+        toast({
+          title: "Error",
+          description: "Buyer not found",
+          variant: "destructive"
+        });
+        return false;
+      }
+      
       const { data, error } = await supabase
         .from("procurement_requests")
         .update({
           buyer_id: buyerId,
+          buyer: buyerData.name,
           status: "accepted",
           updated_at: new Date().toISOString()
         })
@@ -397,18 +531,22 @@ export const ProcurementProvider: React.FC<{
       
       if (error) throw error;
       
-      // Log activity
       await logActivity(
-        currentUser,
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
         LogActions.ACCEPT_REQUEST,
         "request",
         id,
-        { buyerId }
+        { buyerId, buyerName: buyerData.name }
       );
       
-      // Update local state
       const updatedRequest = await mapDbRequestToModel(data);
+      
       setUserRequests(prev => 
+        prev.map(r => r.id === id ? updatedRequest : r)
+      );
+      setRequests(prev => 
         prev.map(r => r.id === id ? updatedRequest : r)
       );
       
@@ -433,7 +571,21 @@ export const ProcurementProvider: React.FC<{
 
   const declineRequest = async (id: string): Promise<boolean> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to decline a request");
+      toast({
+        title: "Error",
+        description: "User must be logged in to decline a request",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (currentUser.role !== 'admin') {
+      toast({
+        title: "Access Denied",
+        description: "Only admins can decline requests",
+        variant: "destructive"
+      });
+      return false;
     }
     
     setIsLoading(true);
@@ -451,17 +603,21 @@ export const ProcurementProvider: React.FC<{
       
       if (error) throw error;
       
-      // Log activity
       await logActivity(
-        currentUser,
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
         LogActions.DECLINE_REQUEST,
         "request",
         id
       );
       
-      // Update local state
       const updatedRequest = await mapDbRequestToModel(data);
+      
       setUserRequests(prev => 
+        prev.map(r => r.id === id ? updatedRequest : r)
+      );
+      setRequests(prev => 
         prev.map(r => r.id === id ? updatedRequest : r)
       );
       
@@ -486,13 +642,43 @@ export const ProcurementProvider: React.FC<{
 
   const updateStage = async (id: string, stage: ProcurementRequest["stage"]): Promise<boolean> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to update a request stage");
+      toast({
+        title: "Error",
+        description: "User must be logged in to update a request stage",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (currentUser.role !== 'admin' && currentUser.role !== 'buyer') {
+      toast({
+        title: "Access Denied",
+        description: "Only admins and assigned buyers can update request stages",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (currentUser.role === 'buyer') {
+      const { data, error } = await supabase
+        .from("procurement_requests")
+        .select("buyer_id")
+        .eq("id", id)
+        .single();
+        
+      if (error || !data || data.buyer_id !== currentUser.id) {
+        toast({
+          title: "Access Denied",
+          description: "You can only update stages for requests assigned to you",
+          variant: "destructive"
+        });
+        return false;
+      }
     }
     
     setIsLoading(true);
     
     try {
-      // If stage is Delivered, also update status to completed
       const updates: any = {
         stage,
         updated_at: new Date().toISOString()
@@ -512,18 +698,22 @@ export const ProcurementProvider: React.FC<{
       
       if (error) throw error;
       
-      // Log activity
       await logActivity(
-        currentUser,
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
         LogActions.UPDATE_STAGE,
         "request",
         id,
         { stage }
       );
       
-      // Update local state
       const updatedRequest = await mapDbRequestToModel(data);
+      
       setUserRequests(prev => 
+        prev.map(r => r.id === id ? updatedRequest : r)
+      );
+      setRequests(prev => 
         prev.map(r => r.id === id ? updatedRequest : r)
       );
       
@@ -548,17 +738,43 @@ export const ProcurementProvider: React.FC<{
 
   const togglePublicStatus = async (id: string): Promise<boolean> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to toggle public status");
+      toast({
+        title: "Error",
+        description: "User must be logged in to toggle public status",
+        variant: "destructive"
+      });
+      return false;
     }
     
     if (currentUser.role !== "admin" && currentUser.role !== "buyer") {
-      throw new Error("Only admins and buyers can toggle public status");
+      toast({
+        title: "Access Denied",
+        description: "Only admins and buyers can toggle public status",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    if (currentUser.role === 'buyer') {
+      const { data, error } = await supabase
+        .from("procurement_requests")
+        .select("buyer_id")
+        .eq("id", id)
+        .single();
+        
+      if (error || !data || data.buyer_id !== currentUser.id) {
+        toast({
+          title: "Access Denied",
+          description: "You can only update visibility for requests assigned to you",
+          variant: "destructive"
+        });
+        return false;
+      }
     }
     
     setIsLoading(true);
     
     try {
-      // First get the current status
       const request = await getRequestById(id);
       
       if (!request) {
@@ -579,9 +795,12 @@ export const ProcurementProvider: React.FC<{
       
       if (error) throw error;
       
-      // Update local state
       const updatedRequest = await mapDbRequestToModel(data);
+      
       setUserRequests(prev => 
+        prev.map(r => r.id === id ? updatedRequest : r)
+      );
+      setRequests(prev => 
         prev.map(r => r.id === id ? updatedRequest : r)
       );
       
@@ -612,7 +831,12 @@ export const ProcurementProvider: React.FC<{
     isPublic: boolean
   ): Promise<RequestComment | null> => {
     if (!currentUser) {
-      throw new Error("User must be logged in to add a comment");
+      toast({
+        title: "Error",
+        description: "User must be logged in to add a comment",
+        variant: "destructive"
+      });
+      return null;
     }
     
     try {
@@ -631,16 +855,16 @@ export const ProcurementProvider: React.FC<{
       
       if (error) throw error;
       
-      // Log activity
       await logActivity(
-        currentUser,
+        currentUser.id,
+        currentUser.name,
+        currentUser.role,
         LogActions.ADD_COMMENT,
         "comment",
         data.id,
         { requestId, isPublic }
       );
       
-      // Convert to frontend model
       const comment: RequestComment = {
         id: data.id,
         requestId: data.request_id,
@@ -651,8 +875,6 @@ export const ProcurementProvider: React.FC<{
         updatedAt: data.updated_at,
         creatorName: currentUser.name
       };
-      
-      // Update local state if needed (comments are usually loaded dynamically)
       
       toast({
         title: "Comment Added",
@@ -671,6 +893,100 @@ export const ProcurementProvider: React.FC<{
     }
   };
 
+  const addOrUpdateRequestItem = async (
+    requestId: string,
+    itemData: Partial<RequestItem>
+  ): Promise<RequestItem | null> => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "User must be logged in to add or update items",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    try {
+      const dbItem: any = {
+        request_id: requestId,
+        item_number: itemData.itemNumber || `ITEM-${Date.now()}`,
+        description: itemData.description || "No description",
+        qty_requested: itemData.qtyRequested || 0,
+        qty_delivered: itemData.qtyDelivered || 0,
+        unit_price: itemData.unitPrice || null,
+        total_price: itemData.totalPrice || null,
+      };
+      
+      let result;
+      
+      if (itemData.id) {
+        const { data, error } = await supabase
+          .from("request_items")
+          .update(dbItem)
+          .eq("id", itemData.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = data;
+      } else {
+        const { data, error } = await supabase
+          .from("request_items")
+          .insert(dbItem)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = data;
+      }
+      
+      const item: RequestItem = {
+        id: result.id,
+        requestId: result.request_id,
+        itemNumber: result.item_number,
+        description: result.description,
+        qtyRequested: result.qty_requested,
+        qtyDelivered: result.qty_delivered,
+        unitPrice: result.unit_price,
+        totalPrice: result.total_price,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at
+      };
+      
+      return item;
+    } catch (error) {
+      console.error("Error adding/updating request item:", error);
+      return null;
+    }
+  };
+
+  const getRequestItems = async (requestId: string): Promise<RequestItem[]> => {
+    try {
+      const { data, error } = await supabase
+        .from("request_items")
+        .select("*")
+        .eq("request_id", requestId);
+        
+      if (error) throw error;
+      
+      return (data || []).map(item => ({
+        id: item.id,
+        requestId: item.request_id,
+        itemNumber: item.item_number,
+        description: item.description,
+        qtyRequested: item.qty_requested,
+        qtyDelivered: item.qty_delivered,
+        unitPrice: item.unit_price,
+        totalPrice: item.total_price,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+    } catch (error) {
+      console.error("Error fetching request items:", error);
+      return [];
+    }
+  };
+
   return (
     <ProcurementContext.Provider 
       value={{ 
@@ -678,6 +994,7 @@ export const ProcurementProvider: React.FC<{
         userRequests,
         createRequest,
         updateRequest,
+        deleteRequest,
         getRequestById,
         uploadFile,
         acceptRequest,
@@ -685,6 +1002,8 @@ export const ProcurementProvider: React.FC<{
         updateStage,
         togglePublicStatus,
         addComment,
+        addOrUpdateRequestItem,
+        getRequestItems,
         isLoading,
         loadUserRequests
       }}

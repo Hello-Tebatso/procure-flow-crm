@@ -1,6 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { ActivityLog, User } from "@/types";
+import { ActivityLog } from "@/types";
 
 export const LogActions = {
   CREATE_REQUEST: "Created request",
@@ -11,28 +11,31 @@ export const LogActions = {
   UPLOAD_FILE: "Uploaded file",
   ADD_COMMENT: "Added comment",
   LOGIN: "Logged in",
-  LOGOUT: "Logged out"
+  LOGOUT: "Logged out",
+  DELETE_REQUEST: "Deleted request"
 };
 
 export type EntityType = "request" | "file" | "comment" | "auth";
 
 export async function logActivity(
-  user: User,
+  userId: string,
+  userName: string,
+  userRole: string,
   action: string,
   entityType: EntityType,
   entityId: string,
   details?: any
 ): Promise<void> {
   try {
-    const logEntry: Omit<ActivityLog, "id"> = {
-      userId: user.id,
-      userName: user.name,
-      userRole: user.role,
+    const logEntry = {
+      user_id: userId,
+      user_name: userName,
+      user_role: userRole,
       action,
-      entityType,
-      entityId,
+      entity_type: entityType,
+      entity_id: entityId,
       details,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
     await supabase.from("activity_logs").insert(logEntry);
@@ -51,7 +54,17 @@ export async function getActivityLogs(limit = 50): Promise<ActivityLog[]> {
 
     if (error) throw error;
 
-    return (data || []) as unknown as ActivityLog[];
+    return (data || []).map(log => ({
+      id: log.id,
+      userId: log.user_id,
+      userName: log.user_name,
+      userRole: log.user_role,
+      action: log.action,
+      entityType: log.entity_type,
+      entityId: log.entity_id,
+      details: log.details,
+      createdAt: log.created_at
+    }));
   } catch (error) {
     console.error("Error fetching activity logs:", error);
     return [];
@@ -69,7 +82,17 @@ export async function getUserActivityLogs(userId: string, limit = 50): Promise<A
 
     if (error) throw error;
 
-    return (data || []) as unknown as ActivityLog[];
+    return (data || []).map(log => ({
+      id: log.id,
+      userId: log.user_id,
+      userName: log.user_name,
+      userRole: log.user_role,
+      action: log.action,
+      entityType: log.entity_type,
+      entityId: log.entity_id,
+      details: log.details,
+      createdAt: log.created_at
+    }));
   } catch (error) {
     console.error("Error fetching user activity logs:", error);
     return [];

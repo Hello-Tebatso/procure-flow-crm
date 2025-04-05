@@ -1,5 +1,5 @@
 
-import { ProcurementRequest, ProcurementStage } from "@/types";
+import { ProcurementRequest, ProcurementStage, User } from "@/types";
 import { useMemo, useState } from "react";
 import { 
   Table, 
@@ -22,23 +22,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Trash } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface RequestsTableProps {
   requests: ProcurementRequest[];
   showActions?: boolean;
   onAccept?: (id: string) => void;
   onDecline?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 const RequestsTable: React.FC<RequestsTableProps> = ({ 
   requests, 
   showActions = false,
   onAccept,
-  onDecline
+  onDecline,
+  onDelete
 }) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const { user } = useAuth();
 
   const getStageBadgeClass = (stage: ProcurementRequest["stage"]) => {
     switch (stage) {
@@ -99,6 +104,16 @@ const RequestsTable: React.FC<RequestsTableProps> = ({
 
   const handleViewDetails = (id: string) => {
     navigate(`/requests/${id}`);
+  };
+
+  // Check if client can delete this request (pending and not assigned to a buyer)
+  const canClientDelete = (request: ProcurementRequest): boolean => {
+    return (
+      user?.role === 'client' && 
+      user?.id === request.clientId &&
+      request.status === 'pending' && 
+      !request.buyerId
+    );
   };
 
   return (
@@ -168,7 +183,7 @@ const RequestsTable: React.FC<RequestsTableProps> = ({
                   <TableCell>{request.buyer || "Unassigned"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
-                      {showActions && request.status === "pending" ? (
+                      {showActions && request.status === "pending" && user?.role === 'admin' ? (
                         <>
                           <Button
                             size="sm"
@@ -187,12 +202,25 @@ const RequestsTable: React.FC<RequestsTableProps> = ({
                           </Button>
                         </>
                       ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => handleViewDetails(request.id)}
-                        >
-                          View
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleViewDetails(request.id)}
+                          >
+                            View
+                          </Button>
+                          
+                          {canClientDelete(request) && onDelete && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                              onClick={() => onDelete(request.id)}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </TableCell>

@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate, Link } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,7 +14,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
 import {
   Form,
@@ -92,27 +91,25 @@ const LoginPage = () => {
     setIsSubmitting(false);
   };
 
-  const onSubmitUser = (data: UserFormValues) => {
+  const onSubmitUser = async (data: UserFormValues) => {
     setIsSubmitting(true);
     
     try {
-      loginAsBuyerOrClient(data.email, data.role as UserRole);
-      toast({
-        title: "Login Successful",
-        description: `Welcome, ${data.email.split('@')[0]}!`,
-      });
+      const success = await loginAsBuyerOrClient(data.email, data.role as UserRole);
       
-      navigate("/dashboard");
-    } catch (error) {
-      let errorMessage = "An error occurred during login";
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
+      if (success) {
+        toast({
+          title: "Login Successful",
+          description: `Welcome, ${data.email.split('@')[0]}!`,
+        });
+        
+        navigate("/dashboard");
       }
-      
+    } catch (error) {
+      console.error("Login error:", error);
       toast({
         title: "Login Failed",
-        description: errorMessage,
+        description: "An error occurred during login",
         variant: "destructive",
       });
     } finally {
@@ -147,12 +144,12 @@ const LoginPage = () => {
         <div className="flex justify-center mb-8">
           <div className="flex items-center">
             <img
-              src="/mgp-logo.png"
+              src="https://static.wixstatic.com/media/bda159_4c1aeb4ff1664028a8d67ea7ce0ac8fd~mv2.png"
               alt="MGP Logo"
               className="h-16 w-16"
             />
             <h1 className="ml-3 text-2xl font-bold text-procurement-primary">
-              MGP
+              MGP Procurement
             </h1>
           </div>
         </div>
@@ -237,8 +234,8 @@ const LoginPage = () => {
                       ) : null}
                       {isSubmitting ? "Logging in..." : "Login as Buyer"}
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Buyers need to be pre-approved by an admin before they can log in.
+                    <p className="text-sm text-amber-600">
+                      Note: Buyers must be pre-approved by an admin to login
                     </p>
                   </form>
                 </Form>
@@ -300,16 +297,11 @@ const LoginPage = () => {
               </p>
               <div className="mt-2 text-xs text-muted-foreground">
                 <p>Admin: admin@example.com (with any password)</p>
-                <p>Buyer: gabriel@example.com, bernado@example.com, magreth@example.com</p>
+                <p>Buyer: gabriel@example.com, bernado@example.com, or magreth@example.com</p>
                 <p>Client: client@example.com or any new email</p>
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <p className="text-sm text-muted-foreground">
-              New client? <Link to="/signup" className="text-procurement-primary hover:underline">Sign up here</Link>
-            </p>
-          </CardFooter>
         </Card>
       </div>
     </div>
