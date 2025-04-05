@@ -1,4 +1,3 @@
-
 export type UserRole = 'admin' | 'buyer' | 'client';
 
 export interface User {
@@ -97,11 +96,7 @@ export interface BuyerPerformance {
   pendingLines: number;
   deliveredOnTime: number;
   deliveredLate: number;
-  deliveredTotal: number;
-  linesPartiallyDelivered: number;
   deliveredOnTimePercentage: number;
-  totalDeliveredPercentage: number;
-  period: string;
 }
 
 export interface DashboardStats {

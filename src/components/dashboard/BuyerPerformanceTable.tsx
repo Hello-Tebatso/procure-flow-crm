@@ -1,4 +1,3 @@
-
 import { BuyerPerformance } from "@/types";
 import { 
   Table, 
@@ -9,12 +8,44 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useState } from "react";
+import { useProcurement } from "@/contexts/ProcurementContext";
 
 interface BuyerPerformanceTableProps {
-  data: BuyerPerformance[];
+  data?: BuyerPerformance[];
 }
 
-const BuyerPerformanceTable: React.FC<BuyerPerformanceTableProps> = ({ data }) => {
+const BuyerPerformanceTable: React.FC<BuyerPerformanceTableProps> = ({ data: initialData }) => {
+  const { user } = useAuth();
+  const { getBuyerPerformance } = useProcurement();
+  const [data, setData] = useState<BuyerPerformance[]>([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        if (initialData && initialData.length > 0) {
+          setData(initialData);
+          return;
+        }
+        
+        let performanceData;
+        
+        if (user?.role === 'buyer') {
+          performanceData = await getBuyerPerformance(user.id);
+        } else {
+          performanceData = await getBuyerPerformance();
+        }
+        
+        setData(performanceData);
+      } catch (error) {
+        console.error("Error loading buyer performance data:", error);
+      }
+    };
+    
+    loadData();
+  }, [user, getBuyerPerformance, initialData]);
+
   return (
     <div className="rounded-md border overflow-hidden">
       <Table>

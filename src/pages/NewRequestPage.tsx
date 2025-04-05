@@ -7,8 +7,8 @@ import { Navigate } from "react-router-dom";
 const NewRequestPage = () => {
   const { user } = useAuth();
   
-  // Only client and admin can create requests
-  if (user?.role !== "client" && user?.role !== "admin") {
+  // Only client and admin can create requests, not buyers
+  if (!user || (user.role !== "client" && user.role !== "admin")) {
     return <Navigate to="/dashboard" />;
   }
   

@@ -6,12 +6,104 @@ import {
   RequestStatus, 
   ProcurementStage,
   RequestItem,
-  RequestComment
+  RequestComment,
+  BuyerPerformance
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadRequestFile, getRequestFiles } from "@/services/FileService";
 import { logActivity, LogActions } from "@/services/LogService";
+
+const MOCK_REQUESTS: ProcurementRequest[] = [
+  {
+    id: "1234-5678-9012-3456",
+    rfqNumber: "MGP-25-0001",
+    poNumber: "PO123456",
+    entity: "MGP Investments",
+    description: "Office Equipment for Luanda Branch",
+    placeOfDelivery: "Luanda, Angola",
+    qtyRequested: 10,
+    qtyDelivered: 0,
+    qtyPending: 10,
+    stage: "New Request",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    isPublic: true,
+    files: []
+  },
+  {
+    id: "2345-6789-0123-4567",
+    rfqNumber: "MGP-25-0002",
+    poNumber: "PO234567",
+    entity: "MGP Investments",
+    description: "IT Supplies for Head Office",
+    placeOfDelivery: "Johannesburg, South Africa",
+    qtyRequested: 5,
+    qtyDelivered: 2,
+    qtyPending: 3,
+    stage: "Resourcing",
+    status: "accepted",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "e8fd159b-57c4-4d36-9bd7-a59ca13057ef",
+    buyer: "Gabriel Zau",
+    isPublic: true,
+    files: []
+  },
+  {
+    id: "3456-7890-1234-5678",
+    rfqNumber: "MGP-25-0003",
+    poNumber: "PO345678",
+    entity: "MGP Investments",
+    description: "Construction Materials",
+    placeOfDelivery: "Maputo, Mozambique",
+    qtyRequested: 100,
+    qtyDelivered: 0,
+    qtyPending: 100,
+    stage: "CO/CE",
+    status: "accepted",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "1d23342a-82a3-4ac8-a73f-4c800d22b2ac",
+    buyer: "Bernado Buela",
+    isPublic: true,
+    files: []
+  }
+];
+
+const MOCK_BUYER_PERFORMANCE: BuyerPerformance[] = [
+  {
+    buyerId: "e8fd159b-57c4-4d36-9bd7-a59ca13057ef",
+    buyerName: "Gabriel Zau",
+    totalLines: 45,
+    pendingLines: 12,
+    deliveredOnTime: 30,
+    deliveredLate: 3,
+    deliveredOnTimePercentage: 91
+  },
+  {
+    buyerId: "1d23342a-82a3-4ac8-a73f-4c800d22b2ac",
+    buyerName: "Bernado Buela",
+    totalLines: 38,
+    pendingLines: 8,
+    deliveredOnTime: 25,
+    deliveredLate: 5,
+    deliveredOnTimePercentage: 83
+  },
+  {
+    buyerId: "c4e125c3-4964-4a8b-b903-18f764b22rte",
+    buyerName: "Magreth Smith",
+    totalLines: 29,
+    pendingLines: 9,
+    deliveredOnTime: 18,
+    deliveredLate: 2,
+    deliveredOnTimePercentage: 90
+  }
+];
 
 interface ProcurementContextType {
   requests: ProcurementRequest[];
@@ -28,6 +120,7 @@ interface ProcurementContextType {
   addComment: (requestId: string, content: string, isPublic: boolean) => Promise<RequestComment | null>;
   addOrUpdateRequestItem: (requestId: string, item: Partial<RequestItem>) => Promise<RequestItem | null>;
   getRequestItems: (requestId: string) => Promise<RequestItem[]>;
+  getBuyerPerformance: (buyerId?: string) => Promise<BuyerPerformance[]>;
   isLoading: boolean;
   loadUserRequests: () => Promise<void>;
 }
@@ -95,8 +188,30 @@ export const ProcurementProvider: React.FC<{
     
     setIsLoading(true);
     try {
-      let query;
+      const { error: tableCheckError } = await supabase
+        .from("procurement_requests")
+        .select("id")
+        .limit(1);
       
+      if (tableCheckError) {
+        console.warn("Using mock data because procurement_requests table doesn't exist:", tableCheckError.message);
+        
+        let filteredRequests;
+        if (currentUser.role === "admin") {
+          filteredRequests = MOCK_REQUESTS;
+        } else if (currentUser.role === "buyer") {
+          filteredRequests = MOCK_REQUESTS.filter(req => req.buyerId === currentUser.id);
+        } else {
+          filteredRequests = MOCK_REQUESTS.filter(req => req.clientId === currentUser.id);
+        }
+        
+        setUserRequests(filteredRequests);
+        setRequests(filteredRequests);
+        setIsLoading(false);
+        return;
+      }
+      
+      let query;
       if (currentUser.role === "admin") {
         query = supabase
           .from("procurement_requests")
@@ -131,9 +246,21 @@ export const ProcurementProvider: React.FC<{
       console.error("Error loading user requests:", error);
       toast({
         title: "Error loading requests",
-        description: "Failed to load your requests",
+        description: "Failed to load your requests. Using mock data instead.",
         variant: "destructive"
       });
+      
+      let filteredRequests;
+      if (currentUser.role === "admin") {
+        filteredRequests = MOCK_REQUESTS;
+      } else if (currentUser.role === "buyer") {
+        filteredRequests = MOCK_REQUESTS.filter(req => req.buyerId === currentUser.id);
+      } else {
+        filteredRequests = MOCK_REQUESTS.filter(req => req.clientId === currentUser.id);
+      }
+      
+      setUserRequests(filteredRequests);
+      setRequests(filteredRequests);
     } finally {
       setIsLoading(false);
     }
@@ -987,6 +1114,59 @@ export const ProcurementProvider: React.FC<{
     }
   };
 
+  const getBuyerPerformance = async (buyerId?: string): Promise<BuyerPerformance[]> => {
+    try {
+      const { error: tableCheckError } = await supabase
+        .from("buyer_performance")
+        .select("id")
+        .limit(1);
+      
+      if (tableCheckError) {
+        console.warn("Using mock buyer performance data");
+        
+        if (buyerId) {
+          return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
+        }
+        
+        return MOCK_BUYER_PERFORMANCE;
+      }
+      
+      let query = supabase.from("buyer_performance").select("*");
+      
+      if (buyerId) {
+        query = query.eq("buyer_id", buyerId);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        return data.map(item => ({
+          buyerId: item.buyer_id,
+          buyerName: item.buyer_name,
+          totalLines: item.total_lines,
+          pendingLines: item.pending_lines,
+          deliveredOnTime: item.delivered_on_time,
+          deliveredLate: item.delivered_late,
+          deliveredOnTimePercentage: item.delivered_on_time_percentage
+        }));
+      }
+      
+      if (buyerId) {
+        return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
+      }
+      return MOCK_BUYER_PERFORMANCE;
+    } catch (error) {
+      console.error("Error fetching buyer performance:", error);
+      
+      if (buyerId) {
+        return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
+      }
+      return MOCK_BUYER_PERFORMANCE;
+    }
+  };
+
   return (
     <ProcurementContext.Provider 
       value={{ 
@@ -1004,6 +1184,7 @@ export const ProcurementProvider: React.FC<{
         addComment,
         addOrUpdateRequestItem,
         getRequestItems,
+        getBuyerPerformance,
         isLoading,
         loadUserRequests
       }}

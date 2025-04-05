@@ -82,7 +82,8 @@ const RequestsPage = () => {
         <div className="flex flex-col md:flex-row items-center justify-between mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Procurement Requests</h1>
           
-          {user?.role === "client" && (
+          {/* Only clients and admins can create new requests, not buyers */}
+          {(user?.role === "client" || user?.role === "admin") && (
             <Button onClick={() => navigate("/requests/new")} className="mt-4 md:mt-0">
               <Plus className="mr-2 h-4 w-4" />
               New Request
