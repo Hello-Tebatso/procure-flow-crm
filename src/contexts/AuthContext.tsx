@@ -117,15 +117,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return; // Only allow buyer and client roles
     }
 
-    const userExists = mockUsers.find(u => u.email === email && u.role === role);
+    // For buyers, we need to check if they're in the allowed list (from mockUsers for demo)
+    if (role === 'buyer') {
+      const allowedBuyer = mockUsers.find(u => u.email === email && u.role === 'buyer');
+      if (!allowedBuyer) {
+        throw new Error("Buyer not in allowed list. Contact an admin to add you.");
+      }
+      
+      setUser(allowedBuyer);
+      localStorage.setItem("mgp-user", JSON.stringify(allowedBuyer));
+      
+      // Log activity
+      logActivity(
+        allowedBuyer,
+        LogActions.LOGIN,
+        "auth",
+        allowedBuyer.id
+      );
+      
+      return;
+    }
+
+    // For clients, create a new user if they don't exist
+    const userExists = mockUsers.find(u => u.email === email && u.role === 'client');
     let userProfile: User;
 
     if (userExists) {
       userProfile = userExists;
     } else {
-      // Create a new user record
+      // Create a new user with a proper UUID format (not a string like "user5")
       userProfile = {
-        id: `user_${Date.now()}`,
+        id: crypto.randomUUID(), // Generate a proper UUID
         name: email.split('@')[0],
         email: email,
         role: role,

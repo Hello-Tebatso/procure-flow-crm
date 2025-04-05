@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,6 +14,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import {
   Form,
@@ -103,9 +104,15 @@ const LoginPage = () => {
       
       navigate("/dashboard");
     } catch (error) {
+      let errorMessage = "An error occurred during login";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Login Failed",
-        description: "An error occurred during login",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -140,9 +147,9 @@ const LoginPage = () => {
         <div className="flex justify-center mb-8">
           <div className="flex items-center">
             <img
-              src="/lovable-uploads/0e327c2e-74bc-454a-8543-770c4d91ee88.png"
+              src="/mgp-logo.png"
               alt="MGP Logo"
-              className="h-12 w-12"
+              className="h-16 w-16"
             />
             <h1 className="ml-3 text-2xl font-bold text-procurement-primary">
               MGP
@@ -230,6 +237,9 @@ const LoginPage = () => {
                       ) : null}
                       {isSubmitting ? "Logging in..." : "Login as Buyer"}
                     </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Buyers need to be pre-approved by an admin before they can log in.
+                    </p>
                   </form>
                 </Form>
               </TabsContent>
@@ -290,11 +300,16 @@ const LoginPage = () => {
               </p>
               <div className="mt-2 text-xs text-muted-foreground">
                 <p>Admin: admin@example.com (with any password)</p>
-                <p>Buyer: Enter any email with @example.com</p>
-                <p>Client: Enter any email with @example.com</p>
+                <p>Buyer: gabriel@example.com, bernado@example.com, magreth@example.com</p>
+                <p>Client: client@example.com or any new email</p>
               </div>
             </div>
           </CardContent>
+          <CardFooter className="flex justify-center">
+            <p className="text-sm text-muted-foreground">
+              New client? <Link to="/signup" className="text-procurement-primary hover:underline">Sign up here</Link>
+            </p>
+          </CardFooter>
         </Card>
       </div>
     </div>

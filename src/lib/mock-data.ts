@@ -1,38 +1,38 @@
 
 import { BuyerPerformance, ProcurementRequest, User } from "@/types";
 
-// Mock users for testing
+// Mock users for testing with proper UUIDs
 export const mockUsers: User[] = [
   {
-    id: "user1",
+    id: "17c41064-d414-45cc-afed-33ec430d9485",
     name: "Admin User",
     email: "admin@example.com",
     role: "admin",
     avatar: "/placeholder.svg"
   },
   {
-    id: "user2",
+    id: "e8fd159b-57c4-4d36-9bd7-a59ca13057ef",
     name: "Gabriel Zau",
     email: "gabriel@example.com",
     role: "buyer",
     avatar: "/placeholder.svg"
   },
   {
-    id: "user3",
+    id: "1d23342a-82a3-4ac8-a73f-4c800d22b2ac",
     name: "Bernado Buela",
     email: "bernado@example.com",
     role: "buyer",
     avatar: "/placeholder.svg"
   },
   {
-    id: "user4",
+    id: "c4e125c3-4964-4a8b-b903-18f764b22rte",
     name: "Magreth Smith",
     email: "magreth@example.com",
     role: "buyer",
     avatar: "/placeholder.svg"
   },
   {
-    id: "user5",
+    id: "754e86c9-afed-45e6-bcae-f2799beb9060",
     name: "Client Company",
     email: "client@example.com",
     role: "client",
@@ -40,10 +40,10 @@ export const mockUsers: User[] = [
   }
 ];
 
-// Mock procurement requests for testing
+// Mock procurement requests for testing with proper UUIDs
 export const mockProcurementRequests: ProcurementRequest[] = [
   {
-    id: "req1",
+    id: "65a5f792-0542-4c25-a082-6d3e1ed2faa3",
     rfqNumber: "REQ0450107",
     poNumber: "61109771",
     entity: "MGP Investments",
@@ -70,12 +70,12 @@ export const mockProcurementRequests: ProcurementRequest[] = [
     status: "accepted",
     createdAt: "2024-11-20T10:15:30Z",
     updatedAt: "2024-11-26T14:20:45Z",
-    clientId: "user5",
-    buyerId: "user4",
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "c4e125c3-4964-4a8b-b903-18f764b22rte",
     isPublic: true
   },
   {
-    id: "req2",
+    id: "93deec65-4f02-4d90-b815-3e9462ae73a4",
     rfqNumber: "",
     poNumber: "61100606",
     entity: "MGP Investments",
@@ -102,12 +102,12 @@ export const mockProcurementRequests: ProcurementRequest[] = [
     status: "accepted",
     createdAt: "2024-11-10T08:25:15Z",
     updatedAt: "2024-11-12T16:40:22Z",
-    clientId: "user5",
-    buyerId: "user2",
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "e8fd159b-57c4-4d36-9bd7-a59ca13057ef",
     isPublic: true
   },
   {
-    id: "req3",
+    id: "b29a2674-89c1-4f18-b8e9-f6c0cd9b5542",
     rfqNumber: "",
     poNumber: "61104646",
     entity: "MGP Investments",
@@ -134,12 +134,12 @@ export const mockProcurementRequests: ProcurementRequest[] = [
     status: "completed",
     createdAt: "2024-11-15T09:12:45Z",
     updatedAt: "2024-11-25T11:30:15Z",
-    clientId: "user5",
-    buyerId: "user2",
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "e8fd159b-57c4-4d36-9bd7-a59ca13057ef",
     isPublic: true
   },
   {
-    id: "req4",
+    id: "8cf5e7da-31ab-4caa-9fc6-05e3a7be1dd9",
     rfqNumber: "",
     poNumber: "61105101",
     entity: "MGP Investments",
@@ -166,12 +166,12 @@ export const mockProcurementRequests: ProcurementRequest[] = [
     status: "accepted",
     createdAt: "2024-11-17T14:25:30Z",
     updatedAt: "2024-11-19T10:15:45Z",
-    clientId: "user5",
-    buyerId: "user3",
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "1d23342a-82a3-4ac8-a73f-4c800d22b2ac",
     isPublic: false
   },
   {
-    id: "req5",
+    id: "42a1c93e-edfa-44f7-be6f-4b3544fd471a",
     rfqNumber: "",
     poNumber: "61098351",
     entity: "MGP Investments",
@@ -198,25 +198,39 @@ export const mockProcurementRequests: ProcurementRequest[] = [
     status: "accepted",
     createdAt: "2024-11-05T11:45:20Z",
     updatedAt: "2024-11-07T16:30:40Z",
-    clientId: "user5",
-    buyerId: "user4",
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
+    buyerId: "c4e125c3-4964-4a8b-b903-18f764b22rte",
     isPublic: true
   },
   {
-    id: "req6",
+    id: "7f32c091-fc68-4651-8e39-c72b9df7836c",
     rfqNumber: "REQ0452188",
     poNumber: "",
     entity: "MGP Investments",
     description: "New Request for Machinery Parts",
     placeOfDelivery: "Cabinda",
+    vendor: "",
+    placeOfArrival: "",
+    poDate: "",
+    mgpEta: "",
+    expDeliveryDate: "",
+    dateDelivered: "",
     qtyRequested: 12,
     qtyDelivered: 0,
     qtyPending: 12,
+    leadTimeDays: 0,
+    daysCount: 0,
+    aging: 0,
+    priority: "",
+    buyer: "",
     stage: "New Request",
+    actionItems: "",
+    responsible: "",
+    dateDue: "",
     status: "pending",
     createdAt: "2024-11-28T09:15:30Z",
     updatedAt: "2024-11-28T09:15:30Z",
-    clientId: "user5",
+    clientId: "754e86c9-afed-45e6-bcae-f2799beb9060",
     isPublic: false
   }
 ];
@@ -224,7 +238,7 @@ export const mockProcurementRequests: ProcurementRequest[] = [
 // Mock buyer performance data for testing
 export const mockBuyerPerformance: BuyerPerformance[] = [
   {
-    buyerId: "user2",
+    buyerId: "e8fd159b-57c4-4d36-9bd7-a59ca13057ef",
     buyerName: "Gabriel Zau",
     totalLines: 26,
     pendingLines: 6,
@@ -237,7 +251,7 @@ export const mockBuyerPerformance: BuyerPerformance[] = [
     period: "Quarter 4"
   },
   {
-    buyerId: "user3",
+    buyerId: "1d23342a-82a3-4ac8-a73f-4c800d22b2ac",
     buyerName: "Bernado Buela",
     totalLines: 46,
     pendingLines: 23,
