@@ -27,6 +27,18 @@ export async function logActivity(
   details?: any
 ): Promise<void> {
   try {
+    // Check if activity_logs table exists before trying to insert
+    const { error: checkError } = await supabase
+      .from("activity_logs")
+      .select("id")
+      .limit(1);
+    
+    // If table doesn't exist, log to console but don't crash
+    if (checkError && checkError.code === "42P01") {
+      console.warn("Activity logs table doesn't exist yet. Skipping log entry.");
+      return;
+    }
+    
     const logEntry = {
       user_id: userId,
       user_name: userName,
@@ -41,11 +53,23 @@ export async function logActivity(
     await supabase.from("activity_logs").insert(logEntry);
   } catch (error) {
     console.error("Error logging activity:", error);
+    // Non-critical operation, so just log the error but don't throw
   }
 }
 
 export async function getActivityLogs(limit = 50): Promise<ActivityLog[]> {
   try {
+    // Check if activity_logs table exists
+    const { error: checkError } = await supabase
+      .from("activity_logs")
+      .select("id")
+      .limit(1);
+    
+    if (checkError && checkError.code === "42P01") {
+      console.warn("Activity logs table doesn't exist yet. Returning empty array.");
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from("activity_logs")
       .select("*")
@@ -73,6 +97,17 @@ export async function getActivityLogs(limit = 50): Promise<ActivityLog[]> {
 
 export async function getUserActivityLogs(userId: string, limit = 50): Promise<ActivityLog[]> {
   try {
+    // Check if activity_logs table exists
+    const { error: checkError } = await supabase
+      .from("activity_logs")
+      .select("id")
+      .limit(1);
+    
+    if (checkError && checkError.code === "42P01") {
+      console.warn("Activity logs table doesn't exist yet. Returning empty array.");
+      return [];
+    }
+    
     const { data, error } = await supabase
       .from("activity_logs")
       .select("*")

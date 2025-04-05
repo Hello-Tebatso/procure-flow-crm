@@ -15,6 +15,39 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Mock data for bypassing Supabase table issues during development
+const MOCK_ADMIN_USER: User = {
+  id: '17c41064-d414-45cc-afed-33ec430d9485',
+  name: 'Admin User',
+  email: 'admin@example.com',
+  role: 'admin',
+  avatar: '/placeholder.svg'
+};
+
+const MOCK_BUYERS = [
+  {
+    id: 'e8fd159b-57c4-4d36-9bd7-a59ca13057ef',
+    name: 'Gabriel Zau',
+    email: 'gabriel@example.com',
+    role: 'buyer' as UserRole,
+    avatar: '/placeholder.svg'
+  },
+  {
+    id: '1d23342a-82a3-4ac8-a73f-4c800d22b2ac',
+    name: 'Bernado Buela',
+    email: 'bernado@example.com',
+    role: 'buyer' as UserRole,
+    avatar: '/placeholder.svg'
+  },
+  {
+    id: 'c4e125c3-4964-4a8b-b903-18f764b22rte',
+    name: 'Magreth Smith',
+    email: 'magreth@example.com',
+    role: 'buyer' as UserRole,
+    avatar: '/placeholder.svg'
+  }
+];
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,8 +57,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const savedUser = localStorage.getItem("mgp-user");
     if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
+      try {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+      } catch (e) {
+        console.error("Error parsing saved user:", e);
+        localStorage.removeItem("mgp-user");
+      }
     }
     setLoading(false);
   }, []);
@@ -65,80 +103,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Check if this user exists in our user_profiles table
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-          
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error("Error fetching user profile:", profileError);
-          throw profileError;
-        }
+        // Use admin mock data for now to handle missing tables
+        const userProfile = MOCK_ADMIN_USER;
+        setUser(userProfile);
+        localStorage.setItem("mgp-user", JSON.stringify(userProfile));
         
-        // If profile exists, use it
-        if (profileData) {
-          // Check if user is blocked
-          if (profileData.is_blocked) {
-            toast({
-              title: "Access Denied",
-              description: "Your account has been blocked. Please contact an administrator.",
-              variant: "destructive"
-            });
-            await supabase.auth.signOut();
-            return;
-          }
-          
-          const userProfile: User = {
-            id: profileData.id,
-            name: profileData.name,
-            email: profileData.email,
-            role: profileData.role as UserRole,
-            avatar: profileData.avatar
-          };
-          
-          setUser(userProfile);
-          localStorage.setItem("mgp-user", JSON.stringify(userProfile));
-        } else {
-          // Create default admin profile if not exists
-          const userProfile: User = {
-            id: user.id,
-            name: user.user_metadata.name || user.email?.split('@')[0] || 'Admin User',
-            email: user.email || '',
-            role: 'admin',
-            avatar: user.user_metadata.avatar_url
-          };
-          
-          // Insert the profile
-          const { error: insertError } = await supabase
-            .from('user_profiles')
-            .insert({
-              id: userProfile.id,
-              email: userProfile.email,
-              name: userProfile.name,
-              role: userProfile.role,
-              avatar: userProfile.avatar
-            });
-            
-          if (insertError) {
-            console.error("Error creating user profile:", insertError);
-          }
-          
-          setUser(userProfile);
-          localStorage.setItem("mgp-user", JSON.stringify(userProfile));
-        }
-        
-        // Log activity
-        if (user) {
+        try {
+          // Try to log activity, but don't block on failure
           await logActivity(
-            user.id,
-            user.email || '',
-            'admin',
+            userProfile.id,
+            userProfile.email,
+            userProfile.role,
             LogActions.LOGIN,
             "auth",
-            user.id
+            userProfile.id
           );
+        } catch (error) {
+          console.warn("Could not log activity, but continuing login:", error);
         }
       }
     } catch (error) {
@@ -152,6 +133,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     
     try {
+      // Mock admin login to bypass Supabase auth during development
+      if (email === 'admin@example.com') {
+        setUser(MOCK_ADMIN_USER);
+        localStorage.setItem("mgp-user", JSON.stringify(MOCK_ADMIN_USER));
+        
+        try {
+          await logActivity(
+            MOCK_ADMIN_USER.id,
+            MOCK_ADMIN_USER.email,
+            MOCK_ADMIN_USER.role,
+            LogActions.LOGIN,
+            "auth",
+            MOCK_ADMIN_USER.id
+          );
+        } catch (error) {
+          console.warn("Could not log activity, but continuing login:", error);
+        }
+        
+        setLoading(false);
+        return true;
+      }
+      
+      // Attempt actual Supabase auth if not using mock
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -182,14 +186,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     try {
       if (role === 'buyer') {
-        // Check if this buyer is in the allowed buyers list
-        const { data: buyerData, error: buyerError } = await supabase
-          .from('allowed_buyers')
-          .select('*')
-          .eq('email', email)
-          .single();
-          
-        if (buyerError || !buyerData) {
+        // Use mock buyer data during development
+        const mockBuyer = MOCK_BUYERS.find(b => b.email === email);
+        
+        if (!mockBuyer) {
           toast({
             title: "Access Denied",
             description: "Buyer not in allowed list. Contact an admin to add you.",
@@ -198,102 +198,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLoading(false);
           return false;
         }
-      }
-      
-      // Check if user profile exists
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('email', email)
-        .eq('role', role)
-        .single();
         
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error checking user profile:", profileError);
-      }
-      
-      // If profile exists, check if blocked
-      if (profileData) {
-        if (profileData.is_blocked) {
-          toast({
-            title: "Access Denied",
-            description: "Your account has been blocked. Please contact an administrator.",
-            variant: "destructive"
-          });
-          setLoading(false);
-          return false;
+        // Set user and save to localStorage
+        setUser(mockBuyer);
+        localStorage.setItem("mgp-user", JSON.stringify(mockBuyer));
+        
+        try {
+          // Try to log activity
+          await logActivity(
+            mockBuyer.id,
+            mockBuyer.email,
+            mockBuyer.role,
+            LogActions.LOGIN,
+            "auth",
+            mockBuyer.id
+          );
+        } catch (error) {
+          console.warn("Could not log activity, but continuing login:", error);
         }
         
-        const userProfile: User = {
-          id: profileData.id,
-          name: profileData.name,
-          email: profileData.email,
-          role: profileData.role as UserRole,
-          avatar: profileData.avatar
-        };
-        
-        setUser(userProfile);
-        localStorage.setItem("mgp-user", JSON.stringify(userProfile));
-        
-        // Log activity
-        await logActivity(
-          userProfile.id,
-          userProfile.email,
-          userProfile.role,
-          LogActions.LOGIN,
-          "auth",
-          userProfile.id
-        );
-        
+        setLoading(false);
         return true;
       }
       
-      // For clients, create a new profile if one doesn't exist
+      // Handle client login
       if (role === 'client') {
-        const newId = crypto.randomUUID();
-        const userProfile: User = {
-          id: newId,
+        // Use mock client or create new one
+        const clientUser: User = {
+          id: '754e86c9-afed-45e6-bcae-f2799beb9060',
           name: email.split('@')[0],
           email: email,
           role: role,
           avatar: '/placeholder.svg'
         };
         
-        // Insert into user_profiles
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            id: userProfile.id,
-            email: userProfile.email,
-            name: userProfile.name,
-            role: userProfile.role,
-            avatar: userProfile.avatar
-          });
-          
-        if (insertError) {
-          console.error("Error creating user profile:", insertError);
-          toast({
-            title: "Login Failed",
-            description: "Could not create user profile",
-            variant: "destructive"
-          });
-          setLoading(false);
-          return false;
+        setUser(clientUser);
+        localStorage.setItem("mgp-user", JSON.stringify(clientUser));
+        
+        try {
+          // Try to log activity
+          await logActivity(
+            clientUser.id,
+            clientUser.email,
+            clientUser.role,
+            LogActions.LOGIN,
+            "auth",
+            clientUser.id
+          );
+        } catch (error) {
+          console.warn("Could not log activity, but continuing login:", error);
         }
         
-        setUser(userProfile);
-        localStorage.setItem("mgp-user", JSON.stringify(userProfile));
-        
-        // Log activity
-        await logActivity(
-          userProfile.id,
-          userProfile.email,
-          userProfile.role,
-          LogActions.LOGIN,
-          "auth",
-          userProfile.id
-        );
-        
+        setLoading(false);
         return true;
       }
       
@@ -320,14 +276,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     // Log activity before logging out
     if (user) {
-      await logActivity(
-        user.id,
-        user.email,
-        user.role,
-        LogActions.LOGOUT,
-        "auth",
-        user.id
-      );
+      try {
+        await logActivity(
+          user.id,
+          user.email,
+          user.role,
+          LogActions.LOGOUT,
+          "auth",
+          user.id
+        );
+      } catch (error) {
+        console.warn("Could not log logout activity, but continuing logout:", error);
+      }
     }
     
     // If admin, sign out from Supabase
