@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -5,6 +6,7 @@ import * as z from "zod";
 import { useProcurement } from "@/contexts/ProcurementContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 
 import {
@@ -19,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertCircle, Loader } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const formSchema = z.object({
   rfqNumber: z.string().optional(),
@@ -33,10 +37,15 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-const NewRequestForm = () => {
+interface NewRequestFormProps {
+  clientId: string | null;
+}
+
+const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
   const { createRequest, uploadFile } = useProcurement();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -62,8 +71,38 @@ const NewRequestForm = () => {
   };
 
   const onSubmit = async (data: FormValues) => {
+    // Make sure we have a client ID
+    if (!clientId) {
+      toast({
+        title: "Error",
+        description: user?.role === "admin" 
+          ? "Please select a client first" 
+          : "Client ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // Format the data for insertion
+      const dbRequest = {
+        rfq_number: data.rfqNumber || "",
+        po_number: data.poNumber || "",
+        entity: data.entity,
+        description: data.description,
+        place_of_delivery: data.placeOfDelivery,
+        place_of_arrival: data.placeOfArrival || "",
+        exp_delivery_date: data.expDeliveryDate || null,
+        qty_requested: data.qtyRequested,
+        qty_delivered: 0,
+        qty_pending: data.qtyRequested,
+        stage: "New Request", 
+        status: "pending",
+        client_id: clientId,
+        is_public: true
+      };
+      
       // Check if the procurement_requests table exists
       const { error: tableCheckError } = await supabase
         .from("procurement_requests")
@@ -78,28 +117,11 @@ const NewRequestForm = () => {
           ...data,
           qtyDelivered: 0,
           qtyPending: data.qtyRequested,
+          clientId: clientId,
         });
       } else {
         // Table exists, insert directly to database
         console.log("Adding request directly to database");
-        
-        // Format the data for insertion
-        const dbRequest = {
-          rfq_number: data.rfqNumber || "",
-          po_number: data.poNumber || "",
-          entity: data.entity,
-          description: data.description,
-          place_of_delivery: data.placeOfDelivery,
-          place_of_arrival: data.placeOfArrival || "",
-          exp_delivery_date: data.expDeliveryDate || null,
-          qty_requested: data.qtyRequested,
-          qty_delivered: 0,
-          qty_pending: data.qtyRequested,
-          stage: "New Request", 
-          status: "pending",
-          client_id: localStorage.getItem("userId") || "", // Get userId from localStorage
-          is_public: true
-        };
         
         const { data: insertData, error } = await supabase
           .from("procurement_requests")
@@ -164,6 +186,18 @@ const NewRequestForm = () => {
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
+
+  // If an admin hasn't selected a client yet, show a message
+  if (user?.role === "admin" && !clientId) {
+    return (
+      <Alert className="bg-yellow-50 border-yellow-200">
+        <AlertCircle className="h-4 w-4 text-yellow-600" />
+        <AlertDescription>
+          Please select a client before creating a request.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <Card>
@@ -341,7 +375,14 @@ const NewRequestForm = () => {
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Request"}
+                {isSubmitting ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Request"
+                )}
               </Button>
             </div>
           </form>
