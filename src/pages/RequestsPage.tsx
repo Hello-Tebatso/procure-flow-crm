@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProcurement } from "@/contexts/ProcurementContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,9 +26,12 @@ const RequestsPage = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<string | null>(null);
 
+  // Memoize loadUserRequests to prevent infinite re-renders
+  const memoizedLoadUserRequests = useCallback(loadUserRequests, []);
+
   useEffect(() => {
-    loadUserRequests();
-  }, [loadUserRequests]);
+    memoizedLoadUserRequests();
+  }, [memoizedLoadUserRequests]);
 
   const handleAccept = async (id: string) => {
     if (!user) return;
@@ -69,7 +72,7 @@ const RequestsPage = () => {
       setProcessingId(null);
       
       if (success) {
-        loadUserRequests();
+        memoizedLoadUserRequests();
       }
     }
     setDeleteDialogOpen(false);
