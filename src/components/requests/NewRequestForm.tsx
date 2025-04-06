@@ -39,9 +39,10 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface NewRequestFormProps {
   clientId: string | null;
+  disabled?: boolean;
 }
 
-const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
+const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => {
   const { createRequest, uploadFile } = useProcurement();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -85,6 +86,18 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
 
     setIsSubmitting(true);
     try {
+      // First check if the current user is authenticated with Supabase
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session) {
+        toast({
+          title: "Authentication Error",
+          description: "You must be authenticated with Supabase to create requests. Please use the admin login.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Format the data for insertion
       const dbRequest = {
         rfq_number: data.rfqNumber || "",
@@ -102,6 +115,8 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
         client_id: clientId,
         is_public: true
       };
+      
+      console.log("Attempting to insert request:", dbRequest);
       
       // Check if the procurement_requests table exists
       const { error: tableCheckError } = await supabase
@@ -129,7 +144,10 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
           .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error("Database insert error:", error);
+          throw error;
+        }
         
         // Map the returned data to our model
         newRequest = {
@@ -215,7 +233,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   <FormItem>
                     <FormLabel>RFQ Number</FormLabel>
                     <FormControl>
-                      <Input placeholder="Optional" {...field} />
+                      <Input placeholder="Optional" {...field} disabled={disabled} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -228,7 +246,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   <FormItem>
                     <FormLabel>PO Number</FormLabel>
                     <FormControl>
-                      <Input placeholder="Optional" {...field} />
+                      <Input placeholder="Optional" {...field} disabled={disabled} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -244,7 +262,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   <FormItem>
                     <FormLabel>Entity</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} disabled={disabled} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -257,7 +275,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   <FormItem>
                     <FormLabel>Quantity Requested</FormLabel>
                     <FormControl>
-                      <Input type="number" min="1" {...field} />
+                      <Input type="number" min="1" {...field} disabled={disabled} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -272,7 +290,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea rows={3} {...field} />
+                    <Textarea rows={3} {...field} disabled={disabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -287,7 +305,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   <FormItem>
                     <FormLabel>Place of Delivery</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} disabled={disabled} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -300,7 +318,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   <FormItem>
                     <FormLabel>Place of Arrival (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Optional" {...field} />
+                      <Input placeholder="Optional" {...field} disabled={disabled} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -315,7 +333,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                 <FormItem>
                   <FormLabel>Expected Delivery Date (Optional)</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input type="date" {...field} disabled={disabled} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -330,6 +348,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                   multiple
                   onChange={handleFileChange}
                   className="mt-1"
+                  disabled={disabled}
                 />
               </div>
 
@@ -356,6 +375,7 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                           size="sm" 
                           onClick={() => removeFile(index)}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          disabled={disabled}
                         >
                           Remove
                         </Button>
@@ -371,10 +391,11 @@ const NewRequestForm = ({ clientId }: NewRequestFormProps) => {
                 type="button"
                 variant="outline"
                 onClick={() => navigate(-1)}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || disabled}>
                 {isSubmitting ? (
                   <>
                     <Loader className="mr-2 h-4 w-4 animate-spin" />

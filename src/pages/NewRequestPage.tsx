@@ -9,17 +9,34 @@ import { User } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const NewRequestPage = () => {
   const { user } = useAuth();
   const [clients, setClients] = useState<User[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   // Only client and admin can create requests, not buyers
   if (!user || (user.role !== "client" && user.role !== "admin")) {
     return <Navigate to="/dashboard" />;
   }
+  
+  // Check Supabase authentication status
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session) {
+        setAuthError("You must be authenticated with Supabase to create requests. Please use the admin login.");
+      } else {
+        setAuthError(null);
+      }
+    };
+    
+    checkAuth();
+  }, []);
   
   // Load clients for admin users
   useEffect(() => {
@@ -77,6 +94,13 @@ const NewRequestPage = () => {
           </p>
         </div>
         
+        {authError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{authError}</AlertDescription>
+          </Alert>
+        )}
+        
         {user?.role === "admin" && (
           <Card className="mb-6">
             <CardHeader>
@@ -108,7 +132,7 @@ const NewRequestPage = () => {
           </Card>
         )}
 
-        <NewRequestForm clientId={clientId} />
+        <NewRequestForm clientId={clientId} disabled={!!authError} />
       </div>
     </MainLayout>
   );
