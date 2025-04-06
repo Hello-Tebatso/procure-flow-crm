@@ -1,4 +1,3 @@
-
 import { BuyerPerformance, ProcurementRequest, User } from "@/types";
 
 // Mock users for testing with proper UUIDs
@@ -244,11 +243,7 @@ export const mockBuyerPerformance: BuyerPerformance[] = [
     pendingLines: 6,
     deliveredOnTime: 19,
     deliveredLate: 1,
-    deliveredTotal: 20,
-    linesPartiallyDelivered: 0,
-    deliveredOnTimePercentage: 95,
-    totalDeliveredPercentage: 77,
-    period: "Quarter 4"
+    deliveredOnTimePercentage: 95
   },
   {
     buyerId: "1d23342a-82a3-4ac8-a73f-4c800d22b2ac",
@@ -257,11 +252,7 @@ export const mockBuyerPerformance: BuyerPerformance[] = [
     pendingLines: 23,
     deliveredOnTime: 23,
     deliveredLate: 0,
-    deliveredTotal: 23,
-    linesPartiallyDelivered: 1,
-    deliveredOnTimePercentage: 100,
-    totalDeliveredPercentage: 50,
-    period: "Quarter 4"
+    deliveredOnTimePercentage: 100
   }
 ];
 

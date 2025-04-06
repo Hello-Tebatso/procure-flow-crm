@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,6 +5,7 @@ import * as z from "zod";
 import { useProcurement } from "@/contexts/ProcurementContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 import {
   Form,
@@ -64,15 +64,74 @@ const NewRequestForm = () => {
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      // Create the request
-      const newRequest = await createRequest({
-        ...data,
-        qtyDelivered: 0,
-        qtyPending: data.qtyRequested,
-      });
+      // Check if the procurement_requests table exists
+      const { error: tableCheckError } = await supabase
+        .from("procurement_requests")
+        .select("id")
+        .limit(1);
+      
+      let newRequest;
+      if (tableCheckError) {
+        // Table doesn't exist, use the mock createRequest function
+        console.log("Using mock createRequest as procurement_requests table doesn't exist");
+        newRequest = await createRequest({
+          ...data,
+          qtyDelivered: 0,
+          qtyPending: data.qtyRequested,
+        });
+      } else {
+        // Table exists, insert directly to database
+        console.log("Adding request directly to database");
+        
+        // Format the data for insertion
+        const dbRequest = {
+          rfq_number: data.rfqNumber || "",
+          po_number: data.poNumber || "",
+          entity: data.entity,
+          description: data.description,
+          place_of_delivery: data.placeOfDelivery,
+          place_of_arrival: data.placeOfArrival || "",
+          exp_delivery_date: data.expDeliveryDate || null,
+          qty_requested: data.qtyRequested,
+          qty_delivered: 0,
+          qty_pending: data.qtyRequested,
+          stage: "New Request", 
+          status: "pending",
+          client_id: localStorage.getItem("userId") || "", // Get userId from localStorage
+          is_public: true
+        };
+        
+        const { data: insertData, error } = await supabase
+          .from("procurement_requests")
+          .insert(dbRequest)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        // Map the returned data to our model
+        newRequest = {
+          id: insertData.id,
+          rfqNumber: insertData.rfq_number,
+          poNumber: insertData.po_number || "",
+          entity: insertData.entity,
+          description: insertData.description,
+          placeOfDelivery: insertData.place_of_delivery,
+          qtyRequested: insertData.qty_requested,
+          qtyDelivered: 0,
+          qtyPending: insertData.qty_pending,
+          stage: insertData.stage,
+          status: insertData.status,
+          createdAt: insertData.created_at,
+          updatedAt: insertData.updated_at,
+          clientId: insertData.client_id,
+          isPublic: insertData.is_public,
+          files: []
+        };
+      }
 
       // Upload files if any
-      if (files.length > 0) {
+      if (files.length > 0 && newRequest) {
         toast({
           title: "Uploading files",
           description: `Uploading ${files.length} files...`,
@@ -91,12 +150,12 @@ const NewRequestForm = () => {
       // Redirect to the requests list
       navigate("/requests");
     } catch (error) {
+      console.error("Error creating request:", error);
       toast({
         title: "Error",
         description: "Failed to create request. Please try again.",
         variant: "destructive",
       });
-      console.error("Error creating request:", error);
     } finally {
       setIsSubmitting(false);
     }
