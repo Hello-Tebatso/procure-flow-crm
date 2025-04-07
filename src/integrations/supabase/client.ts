@@ -34,7 +34,7 @@ export const makeAuthenticatedRequest = async () => {
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
-    console.log("No active session found, using anonymous client");
+    console.warn("No active session found, using mock data mode");
     // Return the regular client instead of throwing an error
     return supabase;
   }
