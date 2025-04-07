@@ -1,9 +1,9 @@
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import ProductItem, { ProductFormValues } from "./ProductItem";
+import ProductItem from "./ProductItem";
 import { useToast } from "@/hooks/use-toast";
+import { ProductFormValues } from "./validationSchema";
 
 interface ProductListProps {
   products: ProductFormValues[];
@@ -15,6 +15,7 @@ const ProductList = ({ products, setProducts, disabled = false }: ProductListPro
   const { toast } = useToast();
 
   const addProduct = () => {
+    // Fix: Ensure new products have required fields properly initialized
     setProducts([...products, {
       description: '',
       qtyRequested: 1

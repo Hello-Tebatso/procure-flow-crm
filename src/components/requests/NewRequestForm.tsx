@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,6 +39,7 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
   const { user } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Fix: Initialize products with non-optional values
   const [products, setProducts] = useState<ProductFormValues[]>([{
     description: '',
     qtyRequested: 1
@@ -371,3 +373,4 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
 };
 
 export default NewRequestForm;
+
