@@ -1,13 +1,13 @@
+
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { useProcurement } from "@/contexts/ProcurementContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { RequestItem } from "@/types";
+import { supabase, makeAuthenticatedRequest } from "@/integrations/supabase/client";
+import { AlertCircle, Loader } from "lucide-react";
 
 import {
   Form,
@@ -21,27 +21,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, Loader, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Label } from "@/components/ui/label";
 
-const productSchema = z.object({
-  description: z.string().min(1, "Product description is required"),
-  qtyRequested: z.coerce.number().positive("Quantity must be greater than 0"),
-});
-
-const formSchema = z.object({
-  rfqNumber: z.string().optional(),
-  poNumber: z.string().optional(),
-  entity: z.string().min(1, "Entity is required"),
-  description: z.string().min(1, "Description is required"),
-  placeOfDelivery: z.string().min(1, "Place of delivery is required"),
-  placeOfArrival: z.string().optional(),
-  expDeliveryDate: z.string().optional(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
-type ProductFormValues = z.infer<typeof productSchema>;
+import ProductList from "./ProductList";
+import FileUpload from "./FileUpload";
+import { formSchema, productSchema, FormValues, ProductFormValues } from "./validationSchema";
 
 interface NewRequestFormProps {
   clientId: string | null;
@@ -72,38 +56,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       expDeliveryDate: "",
     },
   });
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const selectedFiles = Array.from(e.target.files);
-      setFiles(prev => [...prev, ...selectedFiles]);
-    }
-  };
-
-  const addProduct = () => {
-    setProducts([...products, {
-      description: '',
-      qtyRequested: 1
-    }]);
-  };
-
-  const removeProduct = (index: number) => {
-    if (products.length > 1) {
-      setProducts(products.filter((_, i) => i !== index));
-    } else {
-      toast({
-        title: "Cannot Remove",
-        description: "You must have at least one product",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const updateProduct = (index: number, field: keyof ProductFormValues, value: any) => {
-    const updatedProducts = [...products];
-    updatedProducts[index] = { ...updatedProducts[index], [field]: value };
-    setProducts(updatedProducts);
-  };
 
   const validateProducts = (): boolean => {
     let isValid = true;
@@ -184,17 +136,9 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       } else {
         console.log("Adding request directly to database");
         
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
-          toast({
-            title: "Authentication Error",
-            description: "You must be logged in to create a request",
-            variant: "destructive",
-          });
-          return null;
-        }
+        const authClient = await makeAuthenticatedRequest();
         
-        const { data: insertData, error } = await supabase
+        const { data: insertData, error } = await authClient
           .from("procurement_requests")
           .insert(dbRequest)
           .select()
@@ -206,7 +150,7 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
         }
         
         for (const product of products) {
-          const { error: itemError } = await supabase
+          const { error: itemError } = await authClient
             .from("request_items")
             .insert({
               request_id: insertData.id,
@@ -269,10 +213,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   if (user?.role === "admin" && !clientId) {
@@ -395,112 +335,17 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
               />
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Products</h3>
-                <Button 
-                  type="button" 
-                  onClick={addProduct} 
-                  variant="outline" 
-                  size="sm"
-                  className="flex items-center"
-                  disabled={disabled}
-                >
-                  <Plus className="mr-1 h-4 w-4" /> Add Product
-                </Button>
-              </div>
-              
-              {products.map((product, index) => (
-                <Card key={index} className="border border-muted">
-                  <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
-                    <CardTitle className="text-sm font-medium">Product {index + 1}</CardTitle>
-                    {products.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeProduct(index)}
-                        className="h-8 w-8 p-0 text-red-500"
-                        disabled={disabled}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0 grid gap-4">
-                    <div>
-                      <Label htmlFor={`product-${index}-description`}>Product Description</Label>
-                      <Textarea
-                        id={`product-${index}-description`}
-                        value={product.description}
-                        onChange={(e) => updateProduct(index, 'description', e.target.value)}
-                        disabled={disabled}
-                        className="mt-1"
-                        rows={2}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`product-${index}-qty`}>Quantity</Label>
-                      <Input
-                        id={`product-${index}-qty`}
-                        type="number"
-                        min="1"
-                        value={product.qtyRequested}
-                        onChange={(e) => updateProduct(index, 'qtyRequested', parseInt(e.target.value) || 1)}
-                        disabled={disabled}
-                        className="mt-1"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <ProductList 
+              products={products} 
+              setProducts={setProducts} 
+              disabled={disabled} 
+            />
 
-            <div className="space-y-4">
-              <div>
-                <FormLabel>Attachments (Optional)</FormLabel>
-                <Input
-                  type="file"
-                  multiple
-                  onChange={handleFileChange}
-                  className="mt-1"
-                  disabled={disabled}
-                />
-              </div>
-
-              {files.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium mb-2">Selected Files:</p>
-                  <ul className="space-y-2">
-                    {files.map((file, index) => (
-                      <li 
-                        key={index}
-                        className="flex items-center justify-between p-2 bg-muted rounded-md"
-                      >
-                        <div className="flex items-center">
-                          <span className="text-sm truncate max-w-[300px]">
-                            {file.name}
-                          </span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            ({(file.size / 1024).toFixed(0)} KB)
-                          </span>
-                        </div>
-                        <Button 
-                          type="button" 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => removeFile(index)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          disabled={disabled}
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+            <FileUpload 
+              files={files} 
+              setFiles={setFiles} 
+              disabled={disabled} 
+            />
 
             <div className="flex justify-end space-x-4">
               <Button
