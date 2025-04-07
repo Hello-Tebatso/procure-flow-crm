@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Trash2 } from "lucide-react";
-
-export interface ProductFormValues {
-  description: string;
-  qtyRequested: number;
-}
+import { ProductFormValues } from "./validationSchema";
 
 interface ProductItemProps {
   product: ProductFormValues;
