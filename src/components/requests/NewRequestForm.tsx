@@ -20,16 +20,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, Loader, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
 
 const productSchema = z.object({
-  itemNumber: z.string().optional(),
   description: z.string().min(1, "Product description is required"),
   qtyRequested: z.coerce.number().positive("Quantity must be greater than 0"),
-  unitPrice: z.coerce.number().optional(),
 });
 
 const formSchema = z.object({
@@ -58,10 +56,8 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [products, setProducts] = useState<ProductFormValues[]>([{
-    itemNumber: '',
     description: '',
-    qtyRequested: 1,
-    unitPrice: undefined
+    qtyRequested: 1
   }]);
 
   const form = useForm<FormValues>({
@@ -86,10 +82,8 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
 
   const addProduct = () => {
     setProducts([...products, {
-      itemNumber: '',
       description: '',
-      qtyRequested: 1,
-      unitPrice: undefined
+      qtyRequested: 1
     }]);
   };
 
@@ -184,10 +178,8 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
           qtyPending: totalQtyRequested,
           clientId: clientId,
         }, products.map(p => ({
-          itemNumber: p.itemNumber,
           description: p.description,
-          qtyRequested: p.qtyRequested,
-          unitPrice: p.unitPrice
+          qtyRequested: p.qtyRequested
         })));
       } else {
         console.log("Adding request directly to database");
@@ -208,11 +200,9 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
             .from("request_items")
             .insert({
               request_id: insertData.id,
-              item_number: product.itemNumber || `ITEM-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
               description: product.description,
               qty_requested: product.qtyRequested,
               qty_delivered: 0,
-              unit_price: product.unitPrice
             });
             
           if (itemError) {
@@ -427,33 +417,8 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
                     )}
                   </CardHeader>
                   <CardContent className="p-4 pt-0 grid gap-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor={`product-${index}-item-number`}>Item Number (Optional)</Label>
-                        <Input
-                          id={`product-${index}-item-number`}
-                          value={product.itemNumber || ''}
-                          onChange={(e) => updateProduct(index, 'itemNumber', e.target.value)}
-                          placeholder="Auto-generated if empty"
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`product-${index}-qty`}>Quantity</Label>
-                        <Input
-                          id={`product-${index}-qty`}
-                          type="number"
-                          min="1"
-                          value={product.qtyRequested}
-                          onChange={(e) => updateProduct(index, 'qtyRequested', parseInt(e.target.value) || 1)}
-                          disabled={disabled}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
                     <div>
-                      <Label htmlFor={`product-${index}-description`}>Description</Label>
+                      <Label htmlFor={`product-${index}-description`}>Product Description</Label>
                       <Textarea
                         id={`product-${index}-description`}
                         value={product.description}
@@ -464,15 +429,13 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
                       />
                     </div>
                     <div>
-                      <Label htmlFor={`product-${index}-price`}>Unit Price (Optional)</Label>
+                      <Label htmlFor={`product-${index}-qty`}>Quantity</Label>
                       <Input
-                        id={`product-${index}-price`}
+                        id={`product-${index}-qty`}
                         type="number"
-                        min="0"
-                        step="0.01"
-                        value={product.unitPrice || ''}
-                        onChange={(e) => updateProduct(index, 'unitPrice', parseFloat(e.target.value) || undefined)}
-                        placeholder="Optional"
+                        min="1"
+                        value={product.qtyRequested}
+                        onChange={(e) => updateProduct(index, 'qtyRequested', parseInt(e.target.value) || 1)}
                         disabled={disabled}
                         className="mt-1"
                       />
