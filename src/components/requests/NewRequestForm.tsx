@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { AlertCircle, Loader, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 
 const productSchema = z.object({
   itemNumber: z.string().optional(),
@@ -131,7 +131,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
   };
 
   const onSubmit = async (data: FormValues) => {
-    // Make sure we have a client ID
     if (!clientId) {
       toast({
         title: "Error",
@@ -143,17 +142,14 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       return;
     }
 
-    // Validate products
     if (!validateProducts()) {
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // Total quantity from all products
       const totalQtyRequested = products.reduce((sum, product) => sum + product.qtyRequested, 0);
       
-      // Format the data for insertion
       const dbRequest = {
         rfq_number: data.rfqNumber || "",
         po_number: data.poNumber || "",
@@ -173,7 +169,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       
       console.log("Attempting to insert request:", dbRequest);
       
-      // Check if the procurement_requests table exists
       const { error: tableCheckError } = await supabase
         .from("procurement_requests")
         .select("id")
@@ -181,7 +176,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       
       let newRequest;
       if (tableCheckError) {
-        // Table doesn't exist, use the mock createRequest function
         console.log("Using mock createRequest as procurement_requests table doesn't exist");
         newRequest = await createRequest({
           ...data,
@@ -196,7 +190,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
           unitPrice: p.unitPrice
         })));
       } else {
-        // Table exists, insert directly to database
         console.log("Adding request directly to database");
         
         const { data: insertData, error } = await supabase
@@ -210,7 +203,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
           throw error;
         }
         
-        // Add products as request items
         for (const product of products) {
           const { error: itemError } = await supabase
             .from("request_items")
@@ -229,7 +221,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
           }
         }
         
-        // Map the returned data to our model
         newRequest = {
           id: insertData.id,
           rfqNumber: insertData.rfq_number,
@@ -250,7 +241,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
         };
       }
 
-      // Upload files if any
       if (files.length > 0 && newRequest) {
         toast({
           title: "Uploading files",
@@ -267,7 +257,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
         description: "New procurement request created successfully",
       });
 
-      // Redirect to the requests list
       navigate("/requests");
     } catch (error) {
       console.error("Error creating request:", error);
@@ -285,7 +274,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // If an admin hasn't selected a client yet, show a message
   if (user?.role === "admin" && !clientId) {
     return (
       <Alert className="bg-yellow-50 border-yellow-200">
@@ -406,7 +394,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
               />
             </div>
 
-            {/* Products Section */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Products</h3>
