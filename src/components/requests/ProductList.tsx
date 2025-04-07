@@ -16,10 +16,11 @@ const ProductList = ({ products, setProducts, disabled = false }: ProductListPro
 
   const addProduct = () => {
     // Fix: Ensure new products have required fields properly initialized
-    setProducts([...products, {
+    const newProduct: ProductFormValues = {
       description: '',
       qtyRequested: 1
-    }]);
+    };
+    setProducts([...products, newProduct]);
   };
 
   const removeProduct = (index: number) => {
