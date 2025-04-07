@@ -4,14 +4,16 @@ import MainLayout from "@/components/layout/MainLayout";
 import NewRequestForm from "@/components/requests/NewRequestForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, makeAuthenticatedRequest } from "@/integrations/supabase/client";
 import { User } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 const NewRequestPage = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [clients, setClients] = useState<User[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,14 +29,15 @@ const NewRequestPage = () => {
       const loadClients = async () => {
         setIsLoading(true);
         try {
-          // Try to fetch clients from the user_profiles table
-          const { data, error } = await supabase
+          // Try to fetch clients from the user_profiles table with authenticated request
+          const authClient = await makeAuthenticatedRequest();
+          const { data, error } = await authClient
             .from("user_profiles")
             .select("*")
             .eq("role", "client");
             
           if (error) {
-            console.warn("Using mock clients because user_profiles table doesn't exist:", error.message);
+            console.warn("Using mock clients because user_profiles table doesn't exist or auth error:", error.message);
             // Use mock clients if the table doesn't exist
             setClients([
               { id: "754e86c9-afed-45e6-bcae-f2799beb9060", name: "MGP Investments", email: "client@example.com", role: "client" },
@@ -52,6 +55,17 @@ const NewRequestPage = () => {
           }
         } catch (error) {
           console.error("Error loading clients:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load clients. Using mock data.",
+            variant: "destructive"
+          });
+          // Fallback to mock data
+          setClients([
+            { id: "754e86c9-afed-45e6-bcae-f2799beb9060", name: "MGP Investments", email: "client@example.com", role: "client" },
+            { id: "855e86c9-afed-45e6-bcae-f2799beb9061", name: "African Investments Ltd", email: "african@example.com", role: "client" },
+            { id: "956e86c9-afed-45e6-bcae-f2799beb9062", name: "Global Capital Group", email: "global@example.com", role: "client" }
+          ]);
         } finally {
           setIsLoading(false);
         }
@@ -59,7 +73,7 @@ const NewRequestPage = () => {
       
       loadClients();
     }
-  }, [user?.role]);
+  }, [user?.role, toast]);
   
   // For clients, they create requests for themselves
   // For admins, they select a client to create a request for

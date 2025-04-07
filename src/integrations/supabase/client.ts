@@ -15,5 +15,29 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Utility function to check if the current user is an admin
 export const isUserAdmin = async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  return !!user; // Only admins use Supabase auth
+  
+  if (!user) return false;
+  
+  // Check user role in user_profiles table
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+    
+  return data?.role === 'admin';
+};
+
+// Create a custom function to make authenticated requests
+export const makeAuthenticatedRequest = async () => {
+  // Ensure user is logged in by getting session
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    console.error("No active session found. User is not authenticated.");
+    throw new Error("Authentication required");
+  }
+  
+  // Return authenticated instance with current session token
+  return supabase;
 };

@@ -184,6 +184,16 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       } else {
         console.log("Adding request directly to database");
         
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          toast({
+            title: "Authentication Error",
+            description: "You must be logged in to create a request",
+            variant: "destructive",
+          });
+          return null;
+        }
+        
         const { data: insertData, error } = await supabase
           .from("procurement_requests")
           .insert(dbRequest)
@@ -203,6 +213,7 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
               description: product.description,
               qty_requested: product.qtyRequested,
               qty_delivered: 0,
+              item_number: `ITEM-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
             });
             
           if (itemError) {
