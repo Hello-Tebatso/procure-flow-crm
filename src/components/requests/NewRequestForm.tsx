@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -129,10 +128,7 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
           qtyDelivered: 0,
           qtyPending: totalQtyRequested,
           clientId: clientId,
-        }, products.map(p => ({
-          description: p.description,
-          qtyRequested: p.qtyRequested
-        })));
+        }, products);
       } else {
         console.log("Adding request directly to database");
         
