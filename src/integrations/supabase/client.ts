@@ -28,14 +28,15 @@ export const isUserAdmin = async () => {
   return data?.role === 'admin';
 };
 
-// Create a custom function to make authenticated requests
+// Modified to use the anon key if no session is found instead of throwing an error
 export const makeAuthenticatedRequest = async () => {
   // Ensure user is logged in by getting session
   const { data: { session } } = await supabase.auth.getSession();
   
   if (!session) {
-    console.error("No active session found. User is not authenticated.");
-    throw new Error("Authentication required");
+    console.log("No active session found, using anonymous client");
+    // Return the regular client instead of throwing an error
+    return supabase;
   }
   
   // Return authenticated instance with current session token

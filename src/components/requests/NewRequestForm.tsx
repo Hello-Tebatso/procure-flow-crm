@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,7 +5,7 @@ import { useProcurement } from "@/contexts/ProcurementContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase, makeAuthenticatedRequest } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle, Loader } from "lucide-react";
 
 import {
@@ -25,7 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import ProductList from "./ProductList";
 import FileUpload from "./FileUpload";
-import { formSchema, productSchema, FormValues, ProductFormValues } from "./validationSchema";
+import { formSchema, ProductFormValues, FormValues } from "./validationSchema";
 
 interface NewRequestFormProps {
   clientId: string | null;
@@ -39,7 +38,6 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
   const { user } = useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Fix: Initialize products with non-optional values
   const [products, setProducts] = useState<ProductFormValues[]>([{
     description: '',
     qtyRequested: 1
@@ -63,7 +61,23 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
     
     products.forEach((product, index) => {
       try {
-        productSchema.parse(product);
+        if (!product.description.trim()) {
+          toast({
+            title: `Product ${index + 1} Error`,
+            description: `Description is required for product ${index + 1}`,
+            variant: "destructive",
+          });
+          isValid = false;
+        }
+        
+        if (!product.qtyRequested || product.qtyRequested <= 0) {
+          toast({
+            title: `Product ${index + 1} Error`,
+            description: `Quantity must be greater than 0 for product ${index + 1}`,
+            variant: "destructive",
+          });
+          isValid = false;
+        }
       } catch (error) {
         isValid = false;
         toast({
@@ -134,9 +148,7 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
       } else {
         console.log("Adding request directly to database");
         
-        const authClient = await makeAuthenticatedRequest();
-        
-        const { data: insertData, error } = await authClient
+        const { data: insertData, error } = await supabase
           .from("procurement_requests")
           .insert(dbRequest)
           .select()
@@ -148,7 +160,7 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
         }
         
         for (const product of products) {
-          const { error: itemError } = await authClient
+          const { error: itemError } = await supabase
             .from("request_items")
             .insert({
               request_id: insertData.id,
@@ -373,4 +385,3 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
 };
 
 export default NewRequestForm;
-

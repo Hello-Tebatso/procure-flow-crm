@@ -15,7 +15,7 @@ const ProductList = ({ products, setProducts, disabled = false }: ProductListPro
   const { toast } = useToast();
 
   const addProduct = () => {
-    // Fix: Ensure new products have required fields properly initialized
+    // Ensure new products have required fields properly initialized with non-optional values
     const newProduct: ProductFormValues = {
       description: '',
       qtyRequested: 1

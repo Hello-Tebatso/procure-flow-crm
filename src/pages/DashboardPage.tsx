@@ -60,7 +60,8 @@ const DashboardPage = () => {
             </p>
           </div>
           
-          {user?.role !== "admin" && (
+          {/* Only show new request button for clients, not buyers or admins */}
+          {user?.role === "client" && (
             <Button onClick={() => navigate("/requests/new")}>
               New Request
             </Button>
