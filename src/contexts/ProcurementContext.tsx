@@ -304,11 +304,13 @@ export const ProcurementProvider: React.FC<{
         qty_pending: requestData.qtyRequested || 0,
         stage: "New Request" as ProcurementStage,
         status: "pending" as RequestStatus,
-        client_id: currentUser.id,
+        client_id: requestData.clientId,
         is_public: true
       };
       
-      const { data, error } = await supabase
+      // Use the makeAuthenticatedRequest to get a client that can handle RLS properly
+      const authClient = await makeAuthenticatedRequest();
+      const { data, error } = await authClient
         .from("procurement_requests")
         .insert(dbRequest)
         .select()
@@ -348,12 +350,7 @@ export const ProcurementProvider: React.FC<{
       return newRequest;
     } catch (error) {
       console.error("Error creating request:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create request. Please try again.",
-        variant: "destructive"
-      });
-      return null;
+      throw error; // Re-throw to allow fallback in useRequestForm
     } finally {
       setIsLoading(false);
     }
@@ -1002,204 +999,3 @@ export const ProcurementProvider: React.FC<{
         updatedAt: data.updated_at,
         creatorName: currentUser.name
       };
-      
-      toast({
-        title: "Comment Added",
-        description: "Your comment has been added to the request"
-      });
-      
-      return comment;
-    } catch (error) {
-      console.error("Error adding comment:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add comment",
-        variant: "destructive"
-      });
-      return null;
-    }
-  };
-
-  const addOrUpdateRequestItem = async (
-    requestId: string,
-    itemData: Partial<RequestItem>
-  ): Promise<RequestItem | null> => {
-    if (!currentUser) {
-      toast({
-        title: "Error",
-        description: "User must be logged in to add or update items",
-        variant: "destructive"
-      });
-      return null;
-    }
-    
-    try {
-      const dbItem: any = {
-        request_id: requestId,
-        item_number: itemData.itemNumber || `ITEM-${Date.now()}`,
-        description: itemData.description || "No description",
-        qty_requested: itemData.qtyRequested || 0,
-        qty_delivered: itemData.qtyDelivered || 0,
-        unit_price: itemData.unitPrice || null,
-        total_price: itemData.totalPrice || null,
-      };
-      
-      let result;
-      
-      if (itemData.id) {
-        const { data, error } = await supabase
-          .from("request_items")
-          .update(dbItem)
-          .eq("id", itemData.id)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        result = data;
-      } else {
-        const { data, error } = await supabase
-          .from("request_items")
-          .insert(dbItem)
-          .select()
-          .single();
-          
-        if (error) throw error;
-        result = data;
-      }
-      
-      const item: RequestItem = {
-        id: result.id,
-        requestId: result.request_id,
-        itemNumber: result.item_number,
-        description: result.description,
-        qtyRequested: result.qty_requested,
-        qtyDelivered: result.qty_delivered,
-        unitPrice: result.unit_price,
-        totalPrice: result.total_price,
-        createdAt: result.created_at,
-        updatedAt: result.updated_at
-      };
-      
-      return item;
-    } catch (error) {
-      console.error("Error adding/updating request item:", error);
-      return null;
-    }
-  };
-
-  const getRequestItems = async (requestId: string): Promise<RequestItem[]> => {
-    try {
-      const { data, error } = await supabase
-        .from("request_items")
-        .select("*")
-        .eq("request_id", requestId);
-        
-      if (error) throw error;
-      
-      return (data || []).map(item => ({
-        id: item.id,
-        requestId: item.request_id,
-        itemNumber: item.item_number,
-        description: item.description,
-        qtyRequested: item.qty_requested,
-        qtyDelivered: item.qty_delivered,
-        unitPrice: item.unit_price,
-        totalPrice: item.total_price,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at
-      }));
-    } catch (error) {
-      console.error("Error fetching request items:", error);
-      return [];
-    }
-  };
-
-  const getBuyerPerformance = async (buyerId?: string): Promise<BuyerPerformance[]> => {
-    try {
-      const { error: tableCheckError } = await supabase
-        .from("buyer_performance")
-        .select("id")
-        .limit(1);
-      
-      if (tableCheckError) {
-        console.warn("Using mock buyer performance data");
-        
-        if (buyerId) {
-          return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
-        }
-        
-        return MOCK_BUYER_PERFORMANCE;
-      }
-      
-      let query = supabase.from("buyer_performance").select("*");
-      
-      if (buyerId) {
-        query = query.eq("buyer_id", buyerId);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        return data.map(item => ({
-          buyerId: item.buyer_id,
-          buyerName: item.buyer_name,
-          totalLines: item.total_lines,
-          pendingLines: item.pending_lines,
-          deliveredOnTime: item.delivered_on_time,
-          deliveredLate: item.delivered_late,
-          deliveredOnTimePercentage: item.delivered_on_time_percentage
-        }));
-      }
-      
-      if (buyerId) {
-        return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
-      }
-      return MOCK_BUYER_PERFORMANCE;
-    } catch (error) {
-      console.error("Error fetching buyer performance:", error);
-      
-      if (buyerId) {
-        return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
-      }
-      return MOCK_BUYER_PERFORMANCE;
-    }
-  };
-
-  return (
-    <ProcurementContext.Provider 
-      value={{ 
-        requests,
-        userRequests,
-        createRequest,
-        updateRequest,
-        deleteRequest,
-        getRequestById,
-        uploadFile,
-        acceptRequest,
-        declineRequest,
-        updateStage,
-        togglePublicStatus,
-        addComment,
-        addOrUpdateRequestItem,
-        getRequestItems,
-        getBuyerPerformance,
-        isLoading,
-        loadUserRequests
-      }}
-    >
-      {children}
-    </ProcurementContext.Provider>
-  );
-};
-
-export const useProcurement = () => {
-  const context = useContext(ProcurementContext);
-  
-  if (context === undefined) {
-    throw new Error("useProcurement must be used within a ProcurementProvider");
-  }
-  
-  return context;
-};

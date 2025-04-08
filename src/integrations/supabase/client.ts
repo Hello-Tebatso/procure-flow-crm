@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://qicpuqwdjgprltgnitph.supabase.co';
@@ -28,7 +29,7 @@ export const isUserAdmin = async () => {
   return data?.role === 'admin';
 };
 
-// Bypass RLS by using anon key when no session is found
+// Create a function to bypass Row Level Security for specific operations
 export const makeAuthenticatedRequest = async () => {
   try {
     // First check if the user is authenticated
