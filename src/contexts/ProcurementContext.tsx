@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { 
   ProcurementRequest, 
@@ -10,7 +11,7 @@ import {
   BuyerPerformance
 } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, makeAuthenticatedRequest } from "@/integrations/supabase/client";
 import { uploadRequestFile, getRequestFiles } from "@/services/FileService";
 import { logActivity, LogActions } from "@/services/LogService";
 
@@ -999,3 +1000,196 @@ export const ProcurementProvider: React.FC<{
         updatedAt: data.updated_at,
         creatorName: currentUser.name
       };
+      
+      return comment;
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add comment",
+        variant: "destructive"
+      });
+      return null;
+    }
+  };
+
+  const addOrUpdateRequestItem = async (
+    requestId: string,
+    item: Partial<RequestItem>
+  ): Promise<RequestItem | null> => {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "User must be logged in to add or update items",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    try {
+      let itemData: any = {
+        request_id: requestId,
+        description: item.description || "",
+        qty_requested: item.qtyRequested || 0,
+        qty_delivered: item.qtyDelivered !== undefined ? item.qtyDelivered : 0,
+      };
+      
+      if (item.unitPrice !== undefined) itemData.unit_price = item.unitPrice;
+      if (item.totalPrice !== undefined) itemData.total_price = item.totalPrice;
+      
+      let result;
+      
+      // Update existing item if ID is provided
+      if (item.id) {
+        const { data, error } = await supabase
+          .from("request_items")
+          .update(itemData)
+          .eq("id", item.id)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = data;
+        
+        await logActivity(
+          currentUser.id,
+          currentUser.name,
+          currentUser.role,
+          LogActions.UPDATE_ITEM,
+          "item",
+          item.id,
+          { requestId }
+        );
+      } 
+      // Create new item otherwise
+      else {
+        // Generate item number (e.g., ITEM-001)
+        const { data: items, error: countError } = await supabase
+          .from("request_items")
+          .select("id")
+          .eq("request_id", requestId);
+          
+        if (countError) throw countError;
+        
+        itemData.item_number = `ITEM-${String(items.length + 1).padStart(3, '0')}`;
+        
+        const { data, error } = await supabase
+          .from("request_items")
+          .insert(itemData)
+          .select()
+          .single();
+          
+        if (error) throw error;
+        result = data;
+        
+        await logActivity(
+          currentUser.id,
+          currentUser.name,
+          currentUser.role,
+          LogActions.CREATE_ITEM,
+          "item",
+          data.id,
+          { requestId }
+        );
+      }
+      
+      const newItem: RequestItem = {
+        id: result.id,
+        requestId: result.request_id,
+        itemNumber: result.item_number,
+        description: result.description,
+        qtyRequested: result.qty_requested,
+        qtyDelivered: result.qty_delivered,
+        unitPrice: result.unit_price,
+        totalPrice: result.total_price,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at
+      };
+      
+      return newItem;
+    } catch (error) {
+      console.error("Error adding/updating item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add or update item",
+        variant: "destructive"
+      });
+      return null;
+    }
+  };
+
+  const getRequestItems = async (requestId: string): Promise<RequestItem[]> => {
+    try {
+      const { data, error } = await supabase
+        .from("request_items")
+        .select("*")
+        .eq("request_id", requestId)
+        .order("created_at", { ascending: true });
+        
+      if (error) throw error;
+      
+      return data.map((item: any) => ({
+        id: item.id,
+        requestId: item.request_id,
+        itemNumber: item.item_number,
+        description: item.description,
+        qtyRequested: item.qty_requested,
+        qtyDelivered: item.qty_delivered,
+        unitPrice: item.unit_price,
+        totalPrice: item.total_price,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }));
+    } catch (error) {
+      console.error("Error getting request items:", error);
+      return [];
+    }
+  };
+
+  const getBuyerPerformance = async (buyerId?: string): Promise<BuyerPerformance[]> => {
+    try {
+      // This would be a real database query, but for now, just return mock data
+      if (buyerId) {
+        return MOCK_BUYER_PERFORMANCE.filter(bp => bp.buyerId === buyerId);
+      }
+      return MOCK_BUYER_PERFORMANCE;
+    } catch (error) {
+      console.error("Error getting buyer performance:", error);
+      return [];
+    }
+  };
+
+  return (
+    <ProcurementContext.Provider
+      value={{
+        requests,
+        userRequests,
+        createRequest,
+        updateRequest,
+        deleteRequest,
+        getRequestById,
+        uploadFile,
+        acceptRequest,
+        declineRequest,
+        updateStage,
+        togglePublicStatus,
+        addComment,
+        addOrUpdateRequestItem,
+        getRequestItems,
+        getBuyerPerformance,
+        isLoading,
+        loadUserRequests
+      }}
+    >
+      {children}
+    </ProcurementContext.Provider>
+  );
+};
+
+export const useProcurement = () => {
+  const context = useContext(ProcurementContext);
+  if (context === undefined) {
+    throw new Error("useProcurement must be used within a ProcurementProvider");
+  }
+  return context;
+};
