@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle, Loader } from "lucide-react";
+import { ProcurementStage, RequestStatus } from "@/types";
 
 import {
   Form,
@@ -123,8 +124,8 @@ const NewRequestForm = ({ clientId, disabled = false }: NewRequestFormProps) => 
         qtyDelivered: 0,
         qtyPending: totalQtyRequested,
         clientId: clientId,
-        stage: "New Request", 
-        status: "pending"
+        stage: "New Request" as ProcurementStage,
+        status: "pending" as RequestStatus
       };
       
       console.log("Using mock createRequest to bypass RLS issues");
