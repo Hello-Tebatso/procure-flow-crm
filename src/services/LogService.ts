@@ -12,10 +12,12 @@ export const LogActions = {
   ADD_COMMENT: "Added comment",
   LOGIN: "Logged in",
   LOGOUT: "Logged out",
-  DELETE_REQUEST: "Deleted request"
+  DELETE_REQUEST: "Deleted request",
+  CREATE_ITEM: "Created item",
+  UPDATE_ITEM: "Updated item"
 };
 
-export type EntityType = "request" | "file" | "comment" | "auth";
+export type EntityType = "request" | "file" | "comment" | "auth" | "item";
 
 export async function logActivity(
   userId: string,
