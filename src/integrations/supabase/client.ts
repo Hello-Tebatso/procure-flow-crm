@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://qicpuqwdjgprltgnitph.supabase.co';
@@ -29,7 +28,7 @@ export const isUserAdmin = async () => {
   return data?.role === 'admin';
 };
 
-// Bypass RLS by using service role key if available, otherwise fall back to anon key
+// Bypass RLS by using anon key when no session is found
 export const makeAuthenticatedRequest = async () => {
   try {
     // First check if the user is authenticated
@@ -40,11 +39,11 @@ export const makeAuthenticatedRequest = async () => {
       return supabase;
     }
     
-    // If we're here, there's no authenticated session, but we still want to allow the operation
-    console.log("No active session, using anon key for request with RLS bypass");
+    // If we're here, there's no authenticated session, use demo mode
+    console.log("No active session, using demo mode");
     
-    // For client requests without auth, we'll use the regular client but with a note
-    // that RLS policies might block these operations
+    // Create a new client for the request with the same anonymous key
+    // This doesn't help bypass RLS but we keep the interface consistent
     return supabase;
   } catch (error) {
     console.error("Error in makeAuthenticatedRequest:", error);
